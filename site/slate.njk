@@ -1,0 +1,149 @@
+---
+layout: layout.njk
+pagination:
+  data: slates
+  size: 1
+  alias: slate
+permalink: "/slate/{{ slate.ymd }}/"
+navCurrent: slate
+eleventyComputed:
+  title: "NBA slate: {{ slate.label }}"
+---
+<h1>NBA slate: {{ slate.label }}</h1>
+
+<nav aria-label="Slate date" class="date-nav">
+  <ul>
+    {%- for s in slates %}
+    <li>
+      <a href="/slate/{{ s.ymd }}/"{% if s.ymd == slate.ymd %} aria-current="page"{% endif %}>{{ s.navLabel }}</a>
+    </li>
+    {%- endfor %}
+  </ul>
+</nav>
+
+{% if slate.games.length == 0 %}
+<p>No NBA games on this date.</p>
+{% else %}
+<ul class="card-grid" role="list">
+  {%- for game in slate.games %}
+  <li>
+    <article aria-labelledby="game-{{ game.id }}-heading" class="card">
+      <h2 id="game-{{ game.id }}-heading">{{ game.heading }}</h2>
+      <p class="muted">{{ game.statusLine }}</p>
+
+      {% if game.odds %}
+      <p><strong>{{ game.odds.provider }}:</strong> {{ game.odds.text }}</p>
+      {%- for note in game.odds.movement %}
+      <p class="movement">Line movement: {{ note }}.</p>
+      {%- endfor %}
+      {% else %}
+      <p class="muted">No betting line posted yet.</p>
+      {% endif %}
+
+      <table>
+        <caption class="visually-hidden">Season form comparison for {{ game.away.displayName }} and {{ game.home.displayName }}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Signal</th>
+            <th scope="col">{{ game.away.abbreviation }} (away)</th>
+            <th scope="col">{{ game.home.abbreviation }} (home)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">Record</th>
+            <td>{{ game.away.record or "–" }}</td>
+            <td>{{ game.home.record or "–" }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Points for / against</th>
+            <td>{{ game.awayPoints }}</td>
+            <td>{{ game.homePoints }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Last 10 / streak</th>
+            <td>{{ game.awayLastTen }}</td>
+            <td>{{ game.homeLastTen }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Rest</th>
+            <td>{{ game.awayRest }}</td>
+            <td>{{ game.homeRest }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="injury-cols">
+        {%- for side in [game.awayInjuries, game.homeInjuries] %}
+        <section>
+          <h3>{{ side.teamName }} injuries</h3>
+          {% if side.count == 0 %}
+          <p>No players listed.</p>
+          {% else %}
+          <ul>
+            {%- for i in side.visible %}
+            <li><strong>{{ i.athlete }}</strong>{% if i.position %} ({{ i.position }}){% endif %} — {{ i.status }}{% if i.comment %}. {{ i.comment }}{% endif %}</li>
+            {%- endfor %}
+          </ul>
+          {% if side.showFull %}
+          <details>
+            <summary>Full list ({{ side.count }} players)</summary>
+            <ul>
+              {%- for i in side.all %}
+              <li><strong>{{ i.athlete }}</strong>{% if i.position %} ({{ i.position }}){% endif %} — {{ i.status }}{% if i.comment %}. {{ i.comment }}{% endif %}</li>
+              {%- endfor %}
+            </ul>
+          </details>
+          {% endif %}
+          {% endif %}
+        </section>
+        {%- endfor %}
+      </div>
+
+      {% if game.canPredict %}
+      <form method="post" action="/predict" class="predict-form">
+        <input type="hidden" name="gameId" value="{{ game.id }}">
+        <input type="hidden" name="slateDate" value="{{ slate.ymd }}">
+        <h3>Log a prediction</h3>
+        <fieldset>
+          <legend>Who wins?</legend>
+          <label>
+            <input type="radio" name="pick" value="away" required>
+            {{ game.away.displayName }} (away)
+          </label>
+          <label>
+            <input type="radio" name="pick" value="home" required>
+            {{ game.home.displayName }} (home)
+          </label>
+        </fieldset>
+        <div class="field-row">
+          <div class="field">
+            <label for="margin-{{ game.id }}">Predicted margin (points, optional)</label>
+            <input id="margin-{{ game.id }}" name="predictedMargin" type="number" inputmode="numeric" min="1" max="60">
+          </div>
+          <div class="field">
+            <label for="confidence-{{ game.id }}">Confidence (1 = coin flip, 5 = lock)</label>
+            <select id="confidence-{{ game.id }}" name="confidence" required>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3" selected>3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="reasoning-{{ game.id }}">Reasoning (required, this is what the retrospective checks)</label>
+          <textarea id="reasoning-{{ game.id }}" name="reasoning" rows="3" required minlength="10"></textarea>
+        </div>
+        <button type="submit">Save prediction and snapshot inputs</button>
+        <p class="muted">Saving takes you to the Review page, where your prediction will appear at the top.</p>
+      </form>
+      {% elif game.hasPrediction %}
+      <p class="logged-note">Prediction logged for this game. See it on the <a href="/review/">Review page</a>.</p>
+      {% endif %}
+    </article>
+  </li>
+  {%- endfor %}
+</ul>
+{% endif %}

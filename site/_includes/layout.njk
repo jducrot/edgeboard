@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} | EdgeBoard</title>
+  <meta name="description" content="NBA game signals, injury news, and a prediction journal that grades itself.">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  <header class="site-header">
+    <div class="shell header-row">
+      <p class="brand"><a href="/">EdgeBoard</a></p>
+      <nav aria-label="Primary">
+        <ul class="nav-list">
+          <li><a href="/slate/{{ meta.todayYmd }}/"{% if navCurrent == "slate" %} aria-current="page"{% endif %}>Slate</a></li>
+          <li><a href="/review/"{% if navCurrent == "review" %} aria-current="page"{% endif %}>Review</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+  <main id="main" class="shell">
+    {{ content | safe }}
+  </main>
+  <footer class="site-footer">
+    <div class="shell">
+      <p>Data from ESPN public APIs, refreshed {{ meta.builtAtEt }} ET. Lines shown for information, not advice. Past results never guarantee future outcomes.</p>
+      <form method="post" action="/refresh">
+        <button type="submit">Refresh data now</button>
+      </form>
+    </div>
+  </footer>
+</body>
+</html>

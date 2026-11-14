@@ -1,0 +1,62 @@
+---
+layout: layout.njk
+permalink: "/review/"
+title: "Prediction review"
+navCurrent: review
+---
+<h1>Prediction review</h1>
+
+<p>{{ journal.summary }}</p>
+
+{% if journal.predictions.length > 0 %}
+<ul class="card-grid single-col" role="list">
+  {%- for p in journal.predictions %}
+  <li>
+    <article aria-labelledby="pred-{{ p.id }}-heading" class="card">
+      <h2 id="pred-{{ p.id }}-heading">{{ p.gameLabel }} — {{ p.gameDateEt }}</h2>
+      <p><strong>Pick:</strong> {{ p.pickLine }}. <strong>Line at prediction:</strong> {{ p.lineAtPrediction }}</p>
+      <p><strong>Result:</strong> {{ p.resultLine }}</p>
+      <p><strong>Your reasoning:</strong> {{ p.reasoning }}</p>
+
+      {% if p.snapshot %}
+      <details>
+        <summary>Inputs snapshotted at prediction time</summary>
+        <dl>
+          <div><dt>Line</dt><dd>{{ p.snapshot.line }}</dd></div>
+          <div><dt>{{ p.snapshot.awayAbbr }} form</dt><dd>{{ p.snapshot.awayForm }}</dd></div>
+          <div><dt>{{ p.snapshot.homeAbbr }} form</dt><dd>{{ p.snapshot.homeForm }}</dd></div>
+          <div><dt>{{ p.snapshot.awayAbbr }} injuries</dt><dd>{{ p.snapshot.awayInjuries }}</dd></div>
+          <div><dt>{{ p.snapshot.homeAbbr }} injuries</dt><dd>{{ p.snapshot.homeInjuries }}</dd></div>
+        </dl>
+      </details>
+      {% endif %}
+
+      {% if p.hasRetro %}
+      <section aria-label="Retrospective" class="retro-done">
+        <h3>Retrospective</h3>
+        <p>{{ p.retroTags | join(", ") }}{% if p.retroNotes %} — {{ p.retroNotes }}{% endif %}</p>
+      </section>
+      {% elif p.needsRetro %}
+      <form method="post" action="/retro" class="retro-form">
+        <input type="hidden" name="predictionId" value="{{ p.id }}">
+        <fieldset>
+          <legend>Retrospective: why did this land the way it did?</legend>
+          {%- for tag in journal.retroTagOptions %}
+          <label>
+            <input type="checkbox" name="tags" value="{{ tag }}">
+            {{ tag }}
+          </label>
+          {%- endfor %}
+        </fieldset>
+        <div class="field">
+          <label for="notes-{{ p.id }}">Notes (what would you track or weigh differently next time?)</label>
+          <textarea id="notes-{{ p.id }}" name="notes" rows="3"></textarea>
+        </div>
+        <button type="submit">Save retrospective</button>
+      </form>
+      {% endif %}
+    </article>
+  </li>
+  {%- endfor %}
+</ul>
+{% endif %}

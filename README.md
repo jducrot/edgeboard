@@ -10,18 +10,29 @@ EdgeBoard does not pretend to beat the closing line. It helps you synthesize
 public information faster, and it keeps you honest about whether your reads
 are working.
 
+## Stack
+
+- [Eleventy](https://www.11ty.dev/) 3.x renders every page as static HTML
+  with Nunjucks templates. No client-side JavaScript at all.
+- A small dependency-free Node server (`server.mjs`) serves the built site,
+  handles the three form endpoints (`/predict`, `/retro`, `/refresh`),
+  writes to SQLite, and rebuilds the site when data changes. It also
+  rebuilds every 5 minutes so lines and injury news stay fresh.
+- SQLite (better-sqlite3) stores predictions at `data/edgeboard.db`,
+  created on first use and gitignored. Your picks never leave your machine.
+
 ## Pages
 
-- **Slate** (`/`): game cards for a date (yesterday, today, tomorrow, or
-  `/?date=YYYYMMDD`). Each card shows the DraftKings line, total, moneylines,
-  and any movement from open; team records, scoring averages, last-10 form and
-  streak; rest days and back-to-backs; and both teams' injury reports. Games
-  that have not tipped off carry a prediction form.
-- **Review** (`/review`): every prediction with its outcome. On load, finished
-  games are graded automatically. Graded predictions get a retrospective form
-  with cause tags (in-game injury, untracked signal, variance, and so on) and
-  notes. Each prediction keeps a frozen snapshot of its inputs, viewable
-  inline.
+- **Slate** (`/`, redirects to `/slate/YYYYMMDD/`): game cards for
+  yesterday, today, and tomorrow. Each card shows the DraftKings line,
+  total, moneylines, and movement from open; records, scoring averages,
+  last-10 form and streaks; rest days and back-to-backs; and both teams'
+  injury reports. Games that have not tipped off carry a prediction form.
+- **Review** (`/review/`): every prediction with its outcome. Finished games
+  are graded automatically at build time. Graded predictions get a
+  retrospective form with cause tags (in-game injury, untracked signal,
+  variance, and so on). Each prediction keeps a frozen snapshot of its
+  inputs, viewable inline.
 
 ## Data sources
 
@@ -30,30 +41,29 @@ All free, no API keys:
 - `site.api.espn.com` — scoreboard, standings, injuries
 - `sports.core.api.espn.com` — betting odds, including open vs. current lines
 
-Rest days are computed from the previous four days of scoreboards. Odds are
-enrichment: cards render fine before lines are posted.
+Responses are cached on disk (`.cache/`) by `@11ty/eleventy-fetch`: odds and
+scoreboards for 2 minutes, injuries for 10, standings for 30. Rest days are
+computed from the previous four days of scoreboards. Odds are enrichment:
+cards render fine before lines are posted.
 
 Note: `stats.nba.com` (true net rating, pace) blocks datacenter IPs, so it is
-not used yet. Adding it from a residential connection or a nightly job is a
-planned enhancement.
+not used yet.
 
-## Storage
+## Running it
 
-SQLite file at `data/edgeboard.db`, created on first use and gitignored. One
-`predictions` table holds the pick, reasoning, frozen input snapshot (JSON),
-reconciliation result, and retrospective. For Vercel deployment, port the
-storage layer in `src/lib/db.ts` to Turso (libSQL) or Neon Postgres; the
-schema carries over as is.
-
-## Development
+Requires Node 22 or newer.
 
 ```bash
 npm install
 npm run dev
 ```
 
-In a proxied environment (such as a Claude Code cloud container), Node's fetch
-must be told to honor the proxy:
+Then open http://localhost:3000. The site builds once on startup, rebuilds
+every 5 minutes, after every saved prediction or retrospective, and on the
+"Refresh data now" button in the footer.
+
+In a proxied environment (such as a Claude Code cloud container), Node's
+fetch must be told to honor the proxy:
 
 ```bash
 NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt npm run dev
@@ -61,14 +71,15 @@ NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt npm run dev
 
 ## Accessibility
 
-WCAG 2.2 AA is the baseline. Current build passes axe-core (WCAG 2.0/2.1/2.2
-A and AA rule tags) with zero violations on both pages in light and dark
-schemes. Semantics worth preserving when editing: one `h1` per page, game
-cards are `article` elements labelled by their heading, stat comparisons are
-real tables with row and column headers, line movement is conveyed in text
-rather than color alone, form status messages render inside persistent
-`role="status"` live regions, and interactive targets are at least 44px tall.
+WCAG 2.2 AA is the baseline. The current build passes axe-core (WCAG
+2.0/2.1/2.2 A and AA rule tags) with zero violations on both pages in light
+and dark schemes. Because there is no client JavaScript, every interaction is
+a native form submission with a full page response, so there are no live
+regions, hydration gaps, or client state to announce.
 
-Known trap documented in `src/app/actions.ts`: do not add `revalidatePath` to
-the form actions. It re-renders the submitting page in the same response,
-unmounting the form's live region before screen readers announce the result.
+Semantics worth preserving when editing: one `h1` per page, game cards are
+`article` elements labelled by their heading, stat comparisons are real
+tables with row and column headers, line movement is conveyed in text rather
+than color alone, form feedback arrives as a navigated page (the review page
+after a save, a descriptive error page with a way back on invalid input), and
+interactive targets are at least 44px tall.
