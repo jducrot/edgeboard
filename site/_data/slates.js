@@ -357,5 +357,52 @@ export default async function () {
       games: cards,
     });
   }
+
+  normalizeStarterIndices(slates);
   return slates;
+}
+
+/**
+ * Offense and defensive-activity indices for starters, normalized across
+ * every tracked starter on these slates: 100 is average, 15 points is one
+ * standard deviation. Offense: 45% scoring per 36, 30% true shooting,
+ * 25% playmaking (assists minus turnovers per 36). Defensive activity:
+ * 40% steals, 40% blocks, 20% rebounds, all per 36.
+ */
+function normalizeStarterIndices(slates) {
+  const rows = new Set();
+  for (const s of slates) {
+    for (const game of s.games) {
+      for (const list of [game.awayStarters, game.homeStarters]) {
+        if (!list) continue;
+        for (const r of list) if (r.raw) rows.add(r);
+      }
+    }
+  }
+  const sample = [...rows];
+  if (sample.length < 20) return; // Too few players to normalize honestly.
+
+  const comps = ["pts36", "ts", "astNet36", "stl36", "blk36", "reb36"];
+  const stats = {};
+  for (const c of comps) {
+    const vals = sample
+      .map((r) => r.raw[c])
+      .filter((v) => v !== null && Number.isFinite(v));
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const sd =
+      Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length) || 1;
+    stats[c] = { mean, sd };
+  }
+  const z = (r, c) =>
+    r.raw[c] === null || !Number.isFinite(r.raw[c])
+      ? 0
+      : (r.raw[c] - stats[c].mean) / stats[c].sd;
+
+  for (const r of sample) {
+    const off =
+      100 + 15 * (0.45 * z(r, "pts36") + 0.3 * z(r, "ts") + 0.25 * z(r, "astNet36"));
+    const def =
+      100 + 15 * (0.4 * z(r, "stl36") + 0.4 * z(r, "blk36") + 0.2 * z(r, "reb36"));
+    r.indexLine = `Offense ${Math.round(off)}, defensive activity ${Math.round(def)}.`;
+  }
 }
