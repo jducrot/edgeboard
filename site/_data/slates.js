@@ -55,8 +55,57 @@ function impliedProb(ml) {
   return ml < 0 ? -ml / (-ml + 100) : 100 / (ml + 100);
 }
 
-function oddsLine(odds, game) {
+/** Pregame line restated against the final score, in past tense. */
+function finalOddsLine(odds, game) {
+  const hs = game.home.score;
+  const as = game.away.score;
+  if (hs === null || as === null) return null;
+  const winner = hs > as ? game.home : game.away;
+  const loser = hs > as ? game.away : game.home;
+  const margin = Math.abs(hs - as);
+  const sentences = [];
+
+  const m = /^([A-Z]{2,4})\s*-([\d.]+)$/.exec(odds.details ?? "");
+  if (m) {
+    const fav = m[1];
+    const num = Number(m[2]);
+    if (winner.abbreviation === fav) {
+      const res =
+        margin > num ? "covered" : margin === num ? "a push against the spread" : "won but did not cover";
+      sentences.push(`${fav} closed as ${num}-point favorites and won by ${margin}: ${res}.`);
+    } else {
+      sentences.push(
+        `${fav} closed as ${num}-point favorites and lost by ${margin}: an upset, and ${winner.abbreviation} covered.`,
+      );
+    }
+  }
+
+  if (odds.overUnder !== null) {
+    const combined = hs + as;
+    const diff = Math.round((combined - odds.overUnder) * 10) / 10;
+    const res =
+      diff > 0 ? `over by ${diff}` : diff < 0 ? `under by ${-diff}` : "a push";
+    let s = `Total ${odds.overUnder}: they scored ${combined}, ${res}.`;
+    if (
+      odds.openTotal !== null &&
+      odds.currentTotal !== null &&
+      odds.openTotal !== odds.currentTotal
+    ) {
+      const dir = odds.currentTotal < odds.openTotal ? "dropped" : "rose";
+      const confirmed =
+        (dir === "dropped" && diff < 0) || (dir === "rose" && diff > 0);
+      s += ` The total had ${dir} from ${odds.openTotal} before tipoff${confirmed ? ", and the move was right" : ", but the game went the other way"}.`;
+    }
+    sentences.push(s);
+  }
+
+  if (sentences.length === 0) return null;
+  return { provider: odds.provider, text: sentences.join(" "), movement: [] };
+}
+
+function oddsLine(odds, game, isFinal = false) {
   if (!odds) return null;
+  if (isFinal) return finalOddsLine(odds, game);
   // The spread IS the market's expected margin; phrase it that way.
   let s;
   const m = /^([A-Z]{2,4})\s*-([\d.]+)$/.exec(odds.details ?? "");
@@ -178,7 +227,7 @@ export default async function () {
             : g.statusDetail,
         away: g.away,
         home: g.home,
-        odds: oddsLine(odds, g),
+        odds: oddsLine(odds, g, isFinal),
         awayForm: form.get(g.away.id) ?? null,
         homeForm: form.get(g.home.id) ?? null,
         awayPoints: form.get(g.away.id)
