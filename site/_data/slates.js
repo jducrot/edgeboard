@@ -168,6 +168,93 @@ async function injuryView(teamName, teamId, items) {
   };
 }
 
+/**
+ * For a finished game: which pregame-knowable signals pointed at the actual
+ * winner, which pointed the wrong way, and a verdict on predictability.
+ */
+function knowableSignals(g, homeForm, awayForm, homeRest, awayRest) {
+  if (g.home.score === null || g.away.score === null) return null;
+  const homeWon = g.home.score > g.away.score;
+  const winner = homeWon ? g.home : g.away;
+  const loser = homeWon ? g.away : g.home;
+
+  // Each signal favors "home" or "away".
+  const signals = [];
+  signals.push({ favors: "home", text: "home court" });
+
+  if (homeRest?.backToBack && !awayRest?.backToBack) {
+    signals.push({ favors: "away", text: `the rest edge (${g.home.abbreviation} on a back-to-back)` });
+  } else if (awayRest?.backToBack && !homeRest?.backToBack) {
+    signals.push({ favors: "home", text: `the rest edge (${g.away.abbreviation} on a back-to-back)` });
+  }
+
+  const net = (f) =>
+    f && f.avgPointsFor !== null && f.avgPointsAgainst !== null
+      ? f.avgPointsFor - f.avgPointsAgainst
+      : null;
+  const nh = net(homeForm);
+  const na = net(awayForm);
+  if (nh !== null && na !== null && Math.abs(nh - na) >= 1.5) {
+    const f = (n) => `${n >= 0 ? "+" : ""}${Math.round(n * 10) / 10}`;
+    signals.push({
+      favors: nh > na ? "home" : "away",
+      text: `the better season scoring margin (${nh > na ? `${f(nh)} vs ${f(na)}` : `${f(na)} vs ${f(nh)}`} per game)`,
+    });
+  }
+
+  const tenWins = (f) => {
+    const m = /^(\d+)-(\d+)$/.exec(f?.lastTen ?? "");
+    return m ? Number(m[1]) : null;
+  };
+  const th = tenWins(homeForm);
+  const ta = tenWins(awayForm);
+  if (th !== null && ta !== null && Math.abs(th - ta) >= 2) {
+    signals.push({
+      favors: th > ta ? "home" : "away",
+      text: `the better last 10 (${th > ta ? `${homeForm.lastTen} vs ${awayForm.lastTen}` : `${awayForm.lastTen} vs ${homeForm.lastTen}`})`,
+    });
+  }
+
+  for (const [side, form, team] of [
+    ["home", homeForm, g.home],
+    ["away", awayForm, g.away],
+  ]) {
+    const m = /^([WL])(\d+)$/.exec(form?.streak ?? "");
+    if (!m || Number(m[2]) < 3) continue;
+    if (m[1] === "W") {
+      signals.push({ favors: side, text: `${team.abbreviation}'s ${m[2]}-game winning streak` });
+    } else {
+      signals.push({
+        favors: side === "home" ? "away" : "home",
+        text: `${team.abbreviation}'s ${m[2]}-game losing streak`,
+      });
+    }
+  }
+
+  const winnerSide = homeWon ? "home" : "away";
+  const right = signals.filter((s) => s.favors === winnerSide).map((s) => s.text);
+  const wrong = signals.filter((s) => s.favors !== winnerSide).map((s) => s.text);
+
+  let verdict;
+  if (right.length >= 2 && wrong.length === 0) {
+    verdict = "The basics called this one.";
+  } else if (wrong.length > right.length) {
+    verdict = "The basics favored the loser; this was hard to see coming from the stats alone.";
+  } else {
+    verdict = "Mixed signals; this one was genuinely uncertain going in.";
+  }
+
+  const parts = [];
+  if (right.length > 0) {
+    parts.push(`What pointed to ${winner.abbreviation} beforehand: ${right.join(", ")}.`);
+  }
+  if (wrong.length > 0) {
+    parts.push(`What pointed to ${loser.abbreviation} instead: ${wrong.join(", ")}.`);
+  }
+  parts.push(verdict);
+  return parts.join(" ");
+}
+
 export default async function () {
   const ymds = [slateDateEt(-1), slateDateEt(0), slateDateEt(1)];
   const todayYmd = ymds[1];
@@ -218,6 +305,15 @@ export default async function () {
       cards.push({
         recap,
         isFinal,
+        knowable: isFinal
+          ? knowableSignals(
+              g,
+              form.get(g.home.id) ?? null,
+              form.get(g.away.id) ?? null,
+              rest.get(g.home.id) ?? null,
+              rest.get(g.away.id) ?? null,
+            )
+          : null,
         lineCheck: check ? check.text : null,
         id: g.id,
         heading: `${g.away.displayName} at ${g.home.displayName}`,

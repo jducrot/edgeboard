@@ -60,7 +60,10 @@ eleventyComputed:
         </ul>
         {% endif %}
         {% if game.recap.performers %}<p>{{ game.recap.performers }}</p>{% endif %}
-        {% if game.recap.absences %}<p>{{ game.recap.absences }}</p>{% endif %}
+        {% if game.knowable %}
+        <h4>Was it predictable?</h4>
+        <p>{{ game.knowable }}</p>
+        {% endif %}
         <p class="muted">Computed from the box score and the pregame line, not human judgment.</p>
       </section>
       {% endif %}
