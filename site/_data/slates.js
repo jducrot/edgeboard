@@ -14,6 +14,7 @@ import { listPredictions } from "../../lib/db.mjs";
 import { playerImpact } from "../../lib/impact.mjs";
 import { getGameRecap } from "../../lib/recap.mjs";
 import { teamStarters } from "../../lib/starters.mjs";
+import { lineCheck } from "../../lib/linecheck.mjs";
 
 function fmt(n, digits = 1) {
   return n === null || n === undefined ? "–" : Number(n).toFixed(digits);
@@ -146,9 +147,29 @@ export default async function () {
           recap = null; // Recaps are best effort.
         }
       }
+      const awayInjView = isFinal
+        ? { teamName: g.away.displayName, count: 0, visible: [], more: [] }
+        : await injuryView(g.away.displayName, g.away.id, injuries.get(g.away.id) ?? []);
+      const homeInjView = isFinal
+        ? { teamName: g.home.displayName, count: 0, visible: [], more: [] }
+        : await injuryView(g.home.displayName, g.home.id, injuries.get(g.home.id) ?? []);
+      let check = null;
+      if (g.statusState === "pre") {
+        check = lineCheck({
+          game: g,
+          odds,
+          homeForm: form.get(g.home.id) ?? null,
+          awayForm: form.get(g.away.id) ?? null,
+          homeRest: rest.get(g.home.id) ?? null,
+          awayRest: rest.get(g.away.id) ?? null,
+          homeInjuryItems: [...homeInjView.visible, ...homeInjView.more],
+          awayInjuryItems: [...awayInjView.visible, ...awayInjView.more],
+        });
+      }
       cards.push({
         recap,
         isFinal,
+        lineCheck: check ? check.text : null,
         id: g.id,
         heading: `${g.away.displayName} at ${g.home.displayName}`,
         statusLine:
@@ -174,12 +195,8 @@ export default async function () {
           : "–",
         awayRest: restLabel(rest.get(g.away.id) ?? null),
         homeRest: restLabel(rest.get(g.home.id) ?? null),
-        awayInjuries: isFinal
-          ? { teamName: g.away.displayName, count: 0, visible: [], more: [] }
-          : await injuryView(g.away.displayName, g.away.id, injuries.get(g.away.id) ?? []),
-        homeInjuries: isFinal
-          ? { teamName: g.home.displayName, count: 0, visible: [], more: [] }
-          : await injuryView(g.home.displayName, g.home.id, injuries.get(g.home.id) ?? []),
+        awayInjuries: awayInjView,
+        homeInjuries: homeInjView,
         awayStarters: isFinal ? null : await teamStarters(g.away.id).catch(() => null),
         homeStarters: isFinal ? null : await teamStarters(g.home.id).catch(() => null),
         hasPrediction: predictedGameIds.has(g.id),

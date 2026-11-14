@@ -24,9 +24,15 @@ are working.
 ## Pages
 
 - **Slate** (`/`, redirects to `/slate/YYYYMMDD/`): game cards for
-  yesterday, today, and tomorrow. Each card shows the market's expected
-  margin (the spread, phrased plainly), the total, devigged win
-  probabilities derived from the moneylines, and movement from open;
+  yesterday, today, and tomorrow. Each pregame card opens with a **Line
+  check**: a transparent stats-only margin estimate (season scoring
+  margins, home court at +2.5, back-to-backs at -2, fresh key absences at
+  -3 each capped at -6) compared against the spread, with every component
+  named, a verdict (aligned, mild or strong disagreement), and a list of
+  game-time-decision key players as unpriced uncertainty. Each card also
+  shows the market's expected margin (the spread, phrased plainly), the
+  total, devigged win probabilities derived from the moneylines, and
+  movement from open;
   records, scoring averages, last-10 form and streaks; rest days and
   back-to-backs; and both teams' injury reports. Each listed player gets
   an impact line (their recent production when playing) and an absence

@@ -256,6 +256,24 @@ a {
   font-size: 0.875rem;
 }
 
+.linecheck {
+  border-left: 4px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+  border-radius: 0 6px 6px 0;
+  padding: 0.25rem 0.75rem;
+  margin-top: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  .linecheck {
+    border-left-color: var(--link);
+  }
+}
+
+.linecheck h3 {
+  margin-top: 0.5rem;
+}
+
 .recap {
   border-top: 1px solid var(--border);
   margin-top: 0.75rem;

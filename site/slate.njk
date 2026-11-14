@@ -40,6 +40,14 @@ eleventyComputed:
       <p class="muted">No betting line posted yet.</p>
       {% endif %}
 
+      {% if game.lineCheck %}
+      <section aria-label="Line check: {{ game.heading }}" class="linecheck">
+        <h3>Line check</h3>
+        <p>{{ game.lineCheck }}</p>
+        <p class="muted">Computed from season scoring margins, home court, rest, and fresh key absences, nothing else. The market knows more than this model.</p>
+      </section>
+      {% endif %}
+
       {% if game.recap %}
       <section aria-label="How it happened: {{ game.heading }}" class="recap">
         <h3>How it happened</h3>
