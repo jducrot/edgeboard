@@ -42,8 +42,15 @@ are working.
   last completed game, each starter with a hot/cold/steady scoring trend
   over their last five appearances against the five before, and a marker
   when a player entered the lineup within the last several games, which
-  usually means injury cover. Games that have not tipped off carry a
-  prediction form. Finished games swap the injury report for a "How it happened"
+  usually means injury cover. Each starter also carries two normalized
+  indices: an offense index (45% points per 36, 30% true shooting, 25%
+  assists minus turnovers per 36) and a defensive activity index (40%
+  steals, 40% blocks, 20% rebounds, per 36), z-scored across every
+  tracked starter on the slates and mapped to mean 100 with 15 points
+  per standard deviation. Defense is labelled "activity" deliberately:
+  box scores cannot see positioning or rim protection, and true
+  defensive ratings need stats.nba.com, which blocks cloud servers.
+  Games that have not tipped off carry a prediction form. Finished games swap the injury report for a "How it happened"
   section: a computed verdict against the pregame line (held up,
   overpriced favorite, or upset), the quarter where the game turned, the
   two or three box-score factors that decided it, top performers, and who
