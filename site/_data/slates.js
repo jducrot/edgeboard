@@ -20,6 +20,29 @@ function fmt(n, digits = 1) {
   return n === null || n === undefined ? "–" : Number(n).toFixed(digits);
 }
 
+/**
+ * How this team's offense projects against tonight's defense. The lead
+ * number is the opponent's defense relative to league average: positive
+ * means an easier-than-normal night for the offense, negative a harder
+ * one. The projection adds that to the team's own scoring average.
+ */
+function matchupCell(team, opponent, leagueAvgPA) {
+  if (
+    !team || !opponent ||
+    team.avgPointsFor === null ||
+    opponent.avgPointsAgainst === null ||
+    leagueAvgPA === null
+  ) {
+    return "–";
+  }
+  const ease = opponent.avgPointsAgainst - leagueAvgPA;
+  const proj = team.avgPointsFor + ease;
+  const r = Math.round(ease * 10) / 10;
+  const sign = r > 0 ? "+" : "";
+  const word = r > 1 ? "easier" : r < -1 ? "tougher" : "neutral";
+  return `${sign}${r} ${word} (proj ${fmt(proj)}, usual ${fmt(team.avgPointsFor)})`;
+}
+
 function restLabel(rest) {
   if (!rest) return "4+ days rest";
   if (rest.backToBack) return "Back-to-back (0 days rest)";
@@ -265,6 +288,14 @@ export default async function () {
   ]);
   const predictedGameIds = new Set(listPredictions().map((p) => p.game_id));
 
+  const paValues = [...form.values()]
+    .map((f) => f.avgPointsAgainst)
+    .filter((v) => v !== null && Number.isFinite(v));
+  const leagueAvgPA =
+    paValues.length > 0
+      ? paValues.reduce((a, b) => a + b, 0) / paValues.length
+      : null;
+
   const slates = [];
   for (const ymd of ymds) {
     const [games, rest] = await Promise.all([
@@ -326,12 +357,8 @@ export default async function () {
         odds: oddsLine(odds, g, isFinal),
         awayForm: form.get(g.away.id) ?? null,
         homeForm: form.get(g.home.id) ?? null,
-        awayPoints: form.get(g.away.id)
-          ? `${fmt(form.get(g.away.id).avgPointsFor)} / ${fmt(form.get(g.away.id).avgPointsAgainst)}`
-          : "–",
-        homePoints: form.get(g.home.id)
-          ? `${fmt(form.get(g.home.id).avgPointsFor)} / ${fmt(form.get(g.home.id).avgPointsAgainst)}`
-          : "–",
+        awayMatchup: matchupCell(form.get(g.away.id), form.get(g.home.id), leagueAvgPA),
+        homeMatchup: matchupCell(form.get(g.home.id), form.get(g.away.id), leagueAvgPA),
         awayLastTen: form.get(g.away.id)
           ? `${form.get(g.away.id).lastTen ?? "–"} / ${form.get(g.away.id).streak ?? "–"}`
           : "–",
