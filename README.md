@@ -24,10 +24,16 @@ are working.
 ## Pages
 
 - **Slate** (`/`, redirects to `/slate/YYYYMMDD/`): game cards for
-  yesterday, today, and tomorrow. Each card shows the DraftKings line,
-  total, moneylines, and movement from open; records, scoring averages,
-  last-10 form and streaks; rest days and back-to-backs; and both teams'
-  injury reports. Games that have not tipped off carry a prediction form.
+  yesterday, today, and tomorrow. Each card shows the market's expected
+  margin (the spread, phrased plainly), the total, devigged win
+  probabilities derived from the moneylines, and movement from open;
+  records, scoring averages, last-10 form and streaks; rest days and
+  back-to-backs; and both teams' injury reports. Each listed player gets
+  an impact line (their recent production when playing) and an absence
+  context line: a fresh absence whose production goes missing tonight, or
+  one already reflected in the team's recent record, with the team's W-L
+  in the games missed. Games that have not tipped off carry a prediction
+  form.
 - **Review** (`/review/`): every prediction with its outcome. Finished games
   are graded automatically at build time. Graded predictions get a
   retrospective form with cause tags (in-game injury, untracked signal,

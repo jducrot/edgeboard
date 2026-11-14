@@ -82,7 +82,11 @@ eleventyComputed:
           {% else %}
           <ul>
             {%- for i in side.visible %}
-            <li><strong>{{ i.athlete }}</strong>{% if i.position %} ({{ i.position }}){% endif %} — {{ i.status }}{% if i.comment %}. {{ i.comment }}{% endif %}</li>
+            <li>
+              <strong>{{ i.athlete }}</strong>{% if i.position %} ({{ i.position }}){% endif %} — {{ i.status }}{% if i.returnNote %} {{ i.returnNote }}{% endif %}
+              {% if i.value %}<br>{{ i.value }}{% endif %}
+              {% if i.context %}<br>{{ i.context }}{% endif %}
+            </li>
             {%- endfor %}
           </ul>
           {% if side.showFull %}
@@ -90,7 +94,12 @@ eleventyComputed:
             <summary>Full list ({{ side.count }} players)</summary>
             <ul>
               {%- for i in side.all %}
-              <li><strong>{{ i.athlete }}</strong>{% if i.position %} ({{ i.position }}){% endif %} — {{ i.status }}{% if i.comment %}. {{ i.comment }}{% endif %}</li>
+              <li>
+                <strong>{{ i.athlete }}</strong>{% if i.position %} ({{ i.position }}){% endif %} — {{ i.status }}{% if i.returnNote %} {{ i.returnNote }}{% endif %}
+                {% if i.value %}<br>{{ i.value }}{% endif %}
+                {% if i.context %}<br>{{ i.context }}{% endif %}
+                {% if i.comment %}<br>{{ i.comment }}{% endif %}
+              </li>
               {%- endfor %}
             </ul>
           </details>

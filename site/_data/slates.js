@@ -11,6 +11,7 @@ import {
   slateDateEt,
 } from "../../lib/espn.mjs";
 import { listPredictions } from "../../lib/db.mjs";
+import { playerImpact } from "../../lib/impact.mjs";
 
 function fmt(n, digits = 1) {
   return n === null || n === undefined ? "–" : Number(n).toFixed(digits);
@@ -45,26 +46,72 @@ function movementNotes(odds) {
   return notes;
 }
 
+/** American moneyline -> implied probability (0..1), before devigging. */
+function impliedProb(ml) {
+  if (ml === null || !Number.isFinite(ml)) return null;
+  return ml < 0 ? -ml / (-ml + 100) : 100 / (ml + 100);
+}
+
 function oddsLine(odds, game) {
   if (!odds) return null;
-  let s = `${odds.details ?? "No spread posted"}`;
+  // The spread IS the market's expected margin; phrase it that way.
+  let s;
+  const m = /^([A-Z]{2,4})\s*-([\d.]+)$/.exec(odds.details ?? "");
+  if (m) {
+    s = `Expected margin: ${m[1]} by ${m[2]}`;
+  } else if (odds.details) {
+    s = odds.details; // e.g. "EVEN"
+  } else {
+    s = "No spread posted";
+  }
   if (odds.overUnder !== null) s += `, total ${odds.overUnder}`;
-  if (odds.awayMoneyline !== null && odds.homeMoneyline !== null) {
-    const fmtMl = (n) => (n > 0 ? `+${n}` : `${n}`);
-    s += `. Moneyline: ${game.away.abbreviation} ${fmtMl(odds.awayMoneyline)}, ${game.home.abbreviation} ${fmtMl(odds.homeMoneyline)}`;
+
+  // Devigged win probabilities from the moneylines, instead of raw prices.
+  const pA = impliedProb(odds.awayMoneyline);
+  const pH = impliedProb(odds.homeMoneyline);
+  if (pA !== null && pH !== null && pA + pH > 0) {
+    const a = Math.round((pA / (pA + pH)) * 100);
+    s += `. Win probability: ${game.away.abbreviation} ${a}%, ${game.home.abbreviation} ${100 - a}%`;
   }
   return { provider: odds.provider, text: s, movement: movementNotes(odds) };
 }
 
-function injuryView(teamName, items) {
-  const notable = items.filter((i) => i.status.toLowerCase() !== "day-to-day");
-  const visible = (notable.length > 0 ? notable : items).slice(0, 4);
+function returnNote(item) {
+  if (!item.returnDate) return null;
+  const d = new Date(`${item.returnDate}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  const label = new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(d);
+  return `Expected return ${label}.`;
+}
+
+async function injuryView(teamName, teamId, items) {
+  const enriched = await Promise.all(
+    items.slice(0, 8).map(async (i) => {
+      let impact = { value: null, context: null };
+      if (i.athleteId) {
+        try {
+          impact = await playerImpact(i.athleteId, teamId);
+        } catch {
+          // Enrichment is best effort; the card still shows the basics.
+        }
+      }
+      return { ...i, ...impact, returnNote: returnNote(i) };
+    }),
+  );
+  const rest = items.slice(8).map((i) => ({ ...i, value: null, context: null, returnNote: returnNote(i) }));
+  const all = [...enriched, ...rest];
+  const notable = all.filter((i) => i.status.toLowerCase() !== "day-to-day");
+  const visible = (notable.length > 0 ? notable : all).slice(0, 4);
   return {
     teamName,
-    count: items.length,
+    count: all.length,
     visible,
-    all: items,
-    showFull: items.length > visible.length,
+    all,
+    showFull: all.length > visible.length,
   };
 }
 
@@ -114,8 +161,8 @@ export default async function () {
           : "–",
         awayRest: restLabel(rest.get(g.away.id) ?? null),
         homeRest: restLabel(rest.get(g.home.id) ?? null),
-        awayInjuries: injuryView(g.away.displayName, injuries.get(g.away.id) ?? []),
-        homeInjuries: injuryView(g.home.displayName, injuries.get(g.home.id) ?? []),
+        awayInjuries: await injuryView(g.away.displayName, g.away.id, injuries.get(g.away.id) ?? []),
+        homeInjuries: await injuryView(g.home.displayName, g.home.id, injuries.get(g.home.id) ?? []),
         hasPrediction: predictedGameIds.has(g.id),
         canPredict: g.statusState === "pre" && !predictedGameIds.has(g.id),
       });
