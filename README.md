@@ -32,8 +32,12 @@ are working.
   an impact line (their recent production when playing) and an absence
   context line: a fresh absence whose production goes missing tonight, or
   one already reflected in the team's recent record, with the team's W-L
-  in the games missed. Games that have not tipped off carry a prediction
-  form. Finished games swap the injury report for a "How it happened"
+  in the games missed. Each team also shows its starting five from its
+  last completed game, each starter with a hot/cold/steady scoring trend
+  over their last five appearances against the five before, and a marker
+  when a player entered the lineup within the last several games, which
+  usually means injury cover. Games that have not tipped off carry a
+  prediction form. Finished games swap the injury report for a "How it happened"
   section: a computed verdict against the pregame line (held up,
   overpriced favorite, or upset), the quarter where the game turned, the
   two or three box-score factors that decided it, top performers, and who

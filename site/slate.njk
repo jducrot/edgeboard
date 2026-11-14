@@ -92,6 +92,27 @@ eleventyComputed:
 
       {% if not game.isFinal %}
       <div class="injury-cols">
+        {%- for side in [
+          { teamName: game.away.displayName, starters: game.awayStarters },
+          { teamName: game.home.displayName, starters: game.homeStarters }
+        ] %}
+        <section>
+          <h3>{{ side.teamName }} starters</h3>
+          {% if side.starters %}
+          <ul>
+            {%- for s in side.starters %}
+            <li>
+              <strong>{{ s.name }}</strong>{% if s.pos %} ({{ s.pos }}){% endif %}{% if s.newToLineup %} — recently entered the starting lineup, often injury cover{% endif %}
+              {% if s.trend %}<br>{{ s.trend }}{% endif %}
+            </li>
+            {%- endfor %}
+          </ul>
+          <p class="muted">Lineup from the team's last completed game.</p>
+          {% else %}
+          <p>Not enough completed games to read a lineup yet.</p>
+          {% endif %}
+        </section>
+        {%- endfor %}
         {%- for side in [game.awayInjuries, game.homeInjuries] %}
         <section>
           <h3>{{ side.teamName }} injuries</h3>
@@ -107,11 +128,11 @@ eleventyComputed:
             </li>
             {%- endfor %}
           </ul>
-          {% if side.showFull %}
+          {% if side.more.length > 0 %}
           <details>
-            <summary>Full list ({{ side.count }} players)</summary>
+            <summary>{{ side.more.length }} more player{% if side.more.length > 1 %}s{% endif %}</summary>
             <ul>
-              {%- for i in side.all %}
+              {%- for i in side.more %}
               <li>
                 <strong>{{ i.athlete }}</strong>{% if i.position %} ({{ i.position }}){% endif %} — {{ i.status }}{% if i.returnNote %} {{ i.returnNote }}{% endif %}
                 {% if i.value %}<br>{{ i.value }}{% endif %}

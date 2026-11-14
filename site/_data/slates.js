@@ -13,6 +13,7 @@ import {
 import { listPredictions } from "../../lib/db.mjs";
 import { playerImpact } from "../../lib/impact.mjs";
 import { getGameRecap } from "../../lib/recap.mjs";
+import { teamStarters } from "../../lib/starters.mjs";
 
 function fmt(n, digits = 1) {
   return n === null || n === undefined ? "–" : Number(n).toFixed(digits);
@@ -107,12 +108,13 @@ async function injuryView(teamName, teamId, items) {
   const all = [...enriched, ...rest];
   const notable = all.filter((i) => i.status.toLowerCase() !== "day-to-day");
   const visible = (notable.length > 0 ? notable : all).slice(0, 4);
+  // The disclosure holds only players NOT already shown above it.
+  const more = all.filter((i) => !visible.includes(i));
   return {
     teamName,
     count: all.length,
     visible,
-    all,
-    showFull: all.length > visible.length,
+    more,
   };
 }
 
@@ -173,11 +175,13 @@ export default async function () {
         awayRest: restLabel(rest.get(g.away.id) ?? null),
         homeRest: restLabel(rest.get(g.home.id) ?? null),
         awayInjuries: isFinal
-          ? { teamName: g.away.displayName, count: 0, visible: [], all: [], showFull: false }
+          ? { teamName: g.away.displayName, count: 0, visible: [], more: [] }
           : await injuryView(g.away.displayName, g.away.id, injuries.get(g.away.id) ?? []),
         homeInjuries: isFinal
-          ? { teamName: g.home.displayName, count: 0, visible: [], all: [], showFull: false }
+          ? { teamName: g.home.displayName, count: 0, visible: [], more: [] }
           : await injuryView(g.home.displayName, g.home.id, injuries.get(g.home.id) ?? []),
+        awayStarters: isFinal ? null : await teamStarters(g.away.id).catch(() => null),
+        homeStarters: isFinal ? null : await teamStarters(g.home.id).catch(() => null),
         hasPrediction: predictedGameIds.has(g.id),
         canPredict: g.statusState === "pre" && !predictedGameIds.has(g.id),
       });
