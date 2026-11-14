@@ -403,6 +403,6 @@ function normalizeStarterIndices(slates) {
       100 + 15 * (0.45 * z(r, "pts36") + 0.3 * z(r, "ts") + 0.25 * z(r, "astNet36"));
     const def =
       100 + 15 * (0.4 * z(r, "stl36") + 0.4 * z(r, "blk36") + 0.2 * z(r, "reb36"));
-    r.indexLine = `Offense ${Math.round(off)}, defensive activity ${Math.round(def)}.`;
+    r.indexLine = `O:${Math.round(off)}, DA:${Math.round(def)}`;
   }
 }
