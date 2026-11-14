@@ -12,6 +12,7 @@ import {
 } from "../../lib/espn.mjs";
 import { listPredictions } from "../../lib/db.mjs";
 import { playerImpact } from "../../lib/impact.mjs";
+import { getGameRecap } from "../../lib/recap.mjs";
 
 function fmt(n, digits = 1) {
   return n === null || n === undefined ? "–" : Number(n).toFixed(digits);
@@ -135,7 +136,17 @@ export default async function () {
     for (const g of games) {
       const odds = await getOdds(g.id);
       const isFinal = g.statusState === "post";
+      let recap = null;
+      if (isFinal) {
+        try {
+          recap = await getGameRecap(g.id);
+        } catch {
+          recap = null; // Recaps are best effort.
+        }
+      }
       cards.push({
+        recap,
+        isFinal,
         id: g.id,
         heading: `${g.away.displayName} at ${g.home.displayName}`,
         statusLine:
@@ -161,8 +172,12 @@ export default async function () {
           : "–",
         awayRest: restLabel(rest.get(g.away.id) ?? null),
         homeRest: restLabel(rest.get(g.home.id) ?? null),
-        awayInjuries: await injuryView(g.away.displayName, g.away.id, injuries.get(g.away.id) ?? []),
-        homeInjuries: await injuryView(g.home.displayName, g.home.id, injuries.get(g.home.id) ?? []),
+        awayInjuries: isFinal
+          ? { teamName: g.away.displayName, count: 0, visible: [], all: [], showFull: false }
+          : await injuryView(g.away.displayName, g.away.id, injuries.get(g.away.id) ?? []),
+        homeInjuries: isFinal
+          ? { teamName: g.home.displayName, count: 0, visible: [], all: [], showFull: false }
+          : await injuryView(g.home.displayName, g.home.id, injuries.get(g.home.id) ?? []),
         hasPrediction: predictedGameIds.has(g.id),
         canPredict: g.statusState === "pre" && !predictedGameIds.has(g.id),
       });

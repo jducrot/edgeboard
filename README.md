@@ -33,7 +33,12 @@ are working.
   context line: a fresh absence whose production goes missing tonight, or
   one already reflected in the team's recent record, with the team's W-L
   in the games missed. Games that have not tipped off carry a prediction
-  form.
+  form. Finished games swap the injury report for a "How it happened"
+  section: a computed verdict against the pregame line (held up,
+  overpriced favorite, or upset), the quarter where the game turned, the
+  two or three box-score factors that decided it, top performers, and who
+  was listed out for that game. It is rule-based text from the box score,
+  labelled as such.
 - **Review** (`/review/`): every prediction with its outcome. Finished games
   are graded automatically at build time. Graded predictions get a
   retrospective form with cause tags (in-game injury, untracked signal,
@@ -67,6 +72,10 @@ npm run dev
 Then open http://localhost:3000. The site builds once on startup, rebuilds
 every 5 minutes, after every saved prediction or retrospective, and on the
 "Refresh data now" button in the footer.
+
+After pulling code changes, restart the server (Ctrl+C, then `npm run dev`
+again). The running process keeps old code in Node's module cache, so a
+refresh alone rebuilds with stale logic.
 
 In a proxied environment (such as a Claude Code cloud container), Node's
 fetch must be told to honor the proxy:

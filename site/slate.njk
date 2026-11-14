@@ -36,8 +36,25 @@ eleventyComputed:
       {%- for note in game.odds.movement %}
       <p class="movement">Line movement: {{ note }}.</p>
       {%- endfor %}
-      {% else %}
+      {% elif not game.isFinal %}
       <p class="muted">No betting line posted yet.</p>
+      {% endif %}
+
+      {% if game.recap %}
+      <section aria-label="How it happened: {{ game.heading }}" class="recap">
+        <h3>How it happened</h3>
+        {% if game.recap.analysis %}<p>{{ game.recap.analysis }}</p>{% endif %}
+        {% if game.recap.factors.length > 0 %}
+        <ul>
+          {%- for f in game.recap.factors %}
+          <li>{{ f }}.</li>
+          {%- endfor %}
+        </ul>
+        {% endif %}
+        {% if game.recap.performers %}<p>{{ game.recap.performers }}</p>{% endif %}
+        {% if game.recap.absences %}<p>{{ game.recap.absences }}</p>{% endif %}
+        <p class="muted">Computed from the box score and the pregame line, not human judgment.</p>
+      </section>
       {% endif %}
 
       <table>
@@ -73,6 +90,7 @@ eleventyComputed:
         </tbody>
       </table>
 
+      {% if not game.isFinal %}
       <div class="injury-cols">
         {%- for side in [game.awayInjuries, game.homeInjuries] %}
         <section>
@@ -108,6 +126,7 @@ eleventyComputed:
         </section>
         {%- endfor %}
       </div>
+      {% endif %}
 
       {% if game.canPredict %}
       <form method="post" action="/predict" class="predict-form">
