@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  /* Request-time rendering with per-fetch revalidation suits live sports data
+     better than cache components. */
+  cacheComponents: false,
   turbopack: {
     rules: {
       "*.css": {
