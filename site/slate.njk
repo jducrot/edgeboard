@@ -66,9 +66,12 @@ eleventyComputed:
         </ul>
         {% endif %}
         {% if game.recap.performers %}<p>{{ game.recap.performers }}</p>{% endif %}
-        {% if game.knowable %}
+        {% if game.knowable or game.recap.surprise.length %}
         <h4>Was it predictable?</h4>
-        <p>{{ game.knowable }}</p>
+        {% if game.knowable %}<p>{{ game.knowable }}</p>{% endif %}
+        {%- for s in game.recap.surprise %}
+        <p>{{ s }}</p>
+        {%- endfor %}
         {% endif %}
         <p class="muted">Computed from the box score and the pregame line, not human judgment.</p>
       </section>

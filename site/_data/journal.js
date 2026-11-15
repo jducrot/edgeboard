@@ -102,21 +102,28 @@ async function generateAutoRetro(p) {
     if (recap?.factors?.length) {
       sentences.push(`Deciding factors: ${recap.factors.join("; ")}.`);
     }
+    if (recap?.surprise?.length) {
+      sentences.push(`Predictability: ${recap.surprise.join(" ")}`);
+    }
   } catch {
     // Recap is enrichment.
   }
   return sentences.join(" ");
 }
 
+// Bump when the generated text gets smarter, so existing retrospectives
+// regenerate once with the new analysis.
+const RETRO_GEN = 2;
+
 export default async function () {
   await reconcilePending();
   const rows = listPredictions();
 
   for (const p of rows) {
-    if (p.reconciled_at_utc !== null && !p.auto_retro) {
+    if (p.reconciled_at_utc !== null && (!p.auto_retro || (p.retro_gen ?? 0) < RETRO_GEN)) {
       try {
         const text = await generateAutoRetro(p);
-        saveAutoRetro(p.id, text);
+        saveAutoRetro(p.id, text, RETRO_GEN);
         p.auto_retro = text;
       } catch {
         // Try again next build.
