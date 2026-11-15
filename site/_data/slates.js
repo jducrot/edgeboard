@@ -77,28 +77,42 @@ function analyticsRows(away, home) {
  * and leave the injury list.
  */
 function reconcileStartersAndInjuries(ts, injView) {
-  if (!ts?.starters?.length) return { starters: null, injView };
+  if (!ts?.starters?.length) return { starters: null, injView, unaccounted: [], unlisted: [] };
   const isOut = (i) => (i.status ?? "").toLowerCase() === "out";
   const matches = (i, s) =>
     (i.athleteId && i.athleteId === s.id) || i.athlete === s.name;
   const note = (inj) =>
     `on the injury report: ${inj.status}${inj.injuryType ? ` (${inj.injuryType.toLowerCase()})` : ""}`;
 
+  // A missed game with no injury listing: rest, personal reasons, or news
+  // the report has not caught. Either way, availability is unconfirmed.
+  const absenceNote = (p) => {
+    if (!p.missedRecent) return null;
+    return p.missedRecent === 1
+      ? `sat the last game (${p.missedSince}) with no injury listed; status for this game unconfirmed`
+      : `has missed the last ${p.missedRecent} games (since ${p.missedSince}) with no injury listed; status unconfirmed`;
+  };
+  const annotate = (p, extra = {}) => {
+    const inj = injView.all.find((i) => matches(i, p));
+    if (inj) return { ...p, ...extra, gtdNote: note(inj) };
+    return { ...p, ...extra, absenceNote: absenceNote(p) };
+  };
+
   const kept = [];
   for (const s of ts.starters) {
     const inj = injView.all.find((i) => matches(i, s));
     if (inj && isOut(inj)) continue; // Out: injury list only.
-    kept.push(inj ? { ...s, gtdNote: note(inj) } : { ...s });
+    kept.push(annotate(s));
   }
 
-  // A lineup always has five: backfill removed starters with the healthy
-  // bench minutes leaders from the same game, marked as projected.
+  // A lineup always has five: backfill removed starters with the next
+  // players in the five-game ranking, marked as projected.
   for (const b of ts.bench ?? []) {
     if (kept.length >= 5) break;
     if (kept.some((k) => k.id === b.id)) continue;
     const inj = injView.all.find((i) => matches(i, b));
     if (inj && isOut(inj)) continue;
-    kept.push(inj ? { ...b, projected: true, gtdNote: note(inj) } : { ...b, projected: true });
+    kept.push(annotate(b, { projected: true }));
   }
 
   const remainingInjuries = injView.all.filter((i) => {
@@ -106,9 +120,23 @@ function reconcileStartersAndInjuries(ts, injView) {
     return !inLineup || isOut(i); // Shown-in-lineup GTD players leave the injury list.
   });
 
+  // Rotation players outside the lineup who also vanished without a listing.
+  const unaccounted = (ts.absentees ?? [])
+    .filter((a) => !kept.some((k) => k.id === a.id))
+    .filter((a) => !injView.all.some((i) => matches(i, a)))
+    .map((a) => ({ name: a.name, note: absenceNote(a) }));
+
+  // Everyone whose availability is unconfirmed, for the Line check.
+  const unlisted = [
+    ...kept.filter((k) => k.absenceNote).map((k) => k.name),
+    ...unaccounted.map((u) => u.name),
+  ];
+
   return {
     starters: kept.length > 0 ? kept : null,
     injView: { ...injView, all: remainingInjuries, count: remainingInjuries.length },
+    unaccounted,
+    unlisted,
   };
 }
 
@@ -360,16 +388,25 @@ export default async function () {
       let homeStartersList = null;
       let awayInjFinal = awayInjView;
       let homeInjFinal = homeInjView;
+      let awayUnaccounted = [];
+      let homeUnaccounted = [];
       if (!isFinal) {
-        [awayStats, homeStats, awayStartersList, homeStartersList] = await Promise.all([
+        let awayTs;
+        let homeTs;
+        [awayStats, homeStats, awayTs, homeTs] = await Promise.all([
           teamAnalytics(g.away.id).catch(() => null),
           teamAnalytics(g.home.id).catch(() => null),
           teamStarters(g.away.id).catch(() => null),
           teamStarters(g.home.id).catch(() => null),
         ]);
+        const awayR = reconcileStartersAndInjuries(awayTs, awayInjView);
+        const homeR = reconcileStartersAndInjuries(homeTs, homeInjView);
+        ({ starters: awayStartersList, injView: awayInjFinal, unaccounted: awayUnaccounted } = awayR);
+        ({ starters: homeStartersList, injView: homeInjFinal, unaccounted: homeUnaccounted } = homeR);
         if (g.statusState === "pre") {
           // The line check sees the full, unreconciled injury list so that
-          // game-time-decision starters still surface as uncertainty.
+          // game-time-decision starters still surface as uncertainty, plus
+          // anyone whose absence has no injury listing.
           check = lineCheck({
             game: g,
             odds,
@@ -381,12 +418,9 @@ export default async function () {
             awayInjuryItems: awayInjView.all,
             homeStats,
             awayStats,
+            unlistedAbsences: [...awayR.unlisted, ...homeR.unlisted],
           });
         }
-        ({ starters: awayStartersList, injView: awayInjFinal } =
-          reconcileStartersAndInjuries(awayStartersList, awayInjView));
-        ({ starters: homeStartersList, injView: homeInjFinal } =
-          reconcileStartersAndInjuries(homeStartersList, homeInjView));
       }
       return {
         recap,
@@ -427,6 +461,8 @@ export default async function () {
         homeInjuries: homeInjFinal,
         awayStarters: awayStartersList,
         homeStarters: homeStartersList,
+        awayUnaccounted,
+        homeUnaccounted,
         hasPrediction: predictedGameIds.has(g.id),
         canPredict: g.statusState === "pre" && !predictedGameIds.has(g.id),
       };

@@ -46,11 +46,20 @@ are working.
   an impact line (their recent production when playing) and an absence
   context line: a fresh absence whose production goes missing tonight, or
   one already reflected in the team's recent record, with the team's W-L
-  in the games missed. Each team also shows its starting five from its
-  last completed game, each starter with a hot/cold/steady scoring trend
-  over their last five appearances against the five before, and a marker
-  when a player entered the lineup within the last several games, which
-  usually means injury cover. Each starter also carries two normalized
+  in the games missed. Each team also shows a projected starting five,
+  ranked from its last five games by starts weighted toward each player's
+  own most recent appearances, so a rest night does not drop a regular
+  starter while a starter moved to the bench loses his spot within two or
+  three games. Players no longer on the roster are excluded. Starters
+  listed Out are replaced by the next-ranked healthy players, marked as
+  projected, so every lineup shows five. A starter who missed recent games
+  with no injury listing gets a bolded "status unconfirmed" note, rotation
+  players (20+ minutes) in the same situation are listed as "Also
+  unaccounted for", and both feed the Line check's uncertainty bullet.
+  Each starter has a hot/cold/steady scoring trend over their last five
+  appearances against the five before, and a marker when a player entered
+  the lineup within the last several games, which usually means injury
+  cover. Each starter also carries two normalized
   indices: an offense index (45% points per 36, 30% true shooting, 25%
   assists minus turnovers per 36) and a defensive activity index (40%
   steals, 40% blocks, 20% rebounds, per 36), z-scored across every

@@ -137,8 +137,8 @@ eleventyComputed:
       {% if not game.isFinal %}
       <div class="injury-cols">
         {%- for side in [
-          { nickname: game.away.shortDisplayName, starters: game.awayStarters },
-          { nickname: game.home.shortDisplayName, starters: game.homeStarters }
+          { nickname: game.away.shortDisplayName, starters: game.awayStarters, unaccounted: game.awayUnaccounted },
+          { nickname: game.home.shortDisplayName, starters: game.homeStarters, unaccounted: game.homeUnaccounted }
         ] %}
         <section>
           <h3>{{ side.nickname }} starters</h3>
@@ -146,12 +146,17 @@ eleventyComputed:
           <ul>
             {%- for s in side.starters %}
             <li>
-              <strong>{{ s.name }}</strong>{% if s.pos %} ({{ s.pos }}){% endif %}{% if s.projected %} — projected to start (bench minutes leader, usual starter out){% elif s.newToLineup %} — recently entered the starting lineup, often injury cover{% endif %}{% if s.gtdNote %} — {{ s.gtdNote }}{% endif %}
+              <strong>{{ s.name }}</strong>{% if s.pos %} ({{ s.pos }}){% endif %}{% if s.projected %} — projected to start in place of an injured starter{% elif s.newToLineup %} — recently entered the starting lineup, often injury cover{% endif %}{% if s.gtdNote %} — {{ s.gtdNote }}{% endif %}{% if s.absenceNote %} — <strong>{{ s.absenceNote }}</strong>{% endif %}
               {% if s.trend %}<br>{{ s.trend }}{% endif %}
               {% if s.indexLine %}<br>{{ s.indexLine }}{% endif %}
             </li>
             {%- endfor %}
           </ul>
+          {% if side.unaccounted and side.unaccounted.length %}
+          <p><strong>Also unaccounted for:</strong>
+            {%- for u in side.unaccounted %} {{ u.name }} {{ u.note }}{% if not loop.last %};{% else %}.{% endif %}{%- endfor %}
+          </p>
+          {% endif %}
           <p class="muted">100 is league average</p>
           {% else %}
           <p>Not enough completed games to read a {{ side.nickname }} lineup yet.</p>
