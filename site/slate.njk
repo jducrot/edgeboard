@@ -137,25 +137,23 @@ eleventyComputed:
           { nickname: game.away.shortDisplayName, starters: game.awayStarters },
           { nickname: game.home.shortDisplayName, starters: game.homeStarters }
         ] %}
-        <div>
+        <section>
+          <h3>{{ side.nickname }} starters</h3>
           {% if side.starters %}
-          <details>
-            <summary>{{ side.nickname }} starters</summary>
-            <ul>
-              {%- for s in side.starters %}
-              <li>
-                <strong>{{ s.name }}</strong>{% if s.pos %} ({{ s.pos }}){% endif %}{% if s.newToLineup %} — recently entered the starting lineup, often injury cover{% endif %}{% if s.gtdNote %} — {{ s.gtdNote }}{% endif %}
-                {% if s.trend %}<br>{{ s.trend }}{% endif %}
-                {% if s.indexLine %}<br>{{ s.indexLine }}{% endif %}
-              </li>
-              {%- endfor %}
-            </ul>
-            <p class="muted">100 is league average</p>
-          </details>
+          <ul>
+            {%- for s in side.starters %}
+            <li>
+              <strong>{{ s.name }}</strong>{% if s.pos %} ({{ s.pos }}){% endif %}{% if s.projected %} — projected to start (bench minutes leader, usual starter out){% elif s.newToLineup %} — recently entered the starting lineup, often injury cover{% endif %}{% if s.gtdNote %} — {{ s.gtdNote }}{% endif %}
+              {% if s.trend %}<br>{{ s.trend }}{% endif %}
+              {% if s.indexLine %}<br>{{ s.indexLine }}{% endif %}
+            </li>
+            {%- endfor %}
+          </ul>
+          <p class="muted">100 is league average</p>
           {% else %}
           <p>Not enough completed games to read a {{ side.nickname }} lineup yet.</p>
           {% endif %}
-        </div>
+        </section>
         {%- endfor %}
         {%- for side in [
           { nickname: game.away.shortDisplayName, inj: game.awayInjuries },

@@ -76,33 +76,38 @@ function analyticsRows(away, home) {
  * on the report as day-to-day stay starters with the injury noted inline
  * and leave the injury list.
  */
-function reconcileStartersAndInjuries(starters, injView) {
-  if (!starters || injView.all.length === 0) return { starters, injView };
-  const byStatus = (i) => (i.status ?? "").toLowerCase() === "out";
+function reconcileStartersAndInjuries(ts, injView) {
+  if (!ts?.starters?.length) return { starters: null, injView };
+  const isOut = (i) => (i.status ?? "").toLowerCase() === "out";
   const matches = (i, s) =>
     (i.athleteId && i.athleteId === s.id) || i.athlete === s.name;
+  const note = (inj) =>
+    `on the injury report: ${inj.status}${inj.injuryType ? ` (${inj.injuryType.toLowerCase()})` : ""}`;
 
-  const keptStarters = [];
-  for (const s of starters) {
+  const kept = [];
+  for (const s of ts.starters) {
     const inj = injView.all.find((i) => matches(i, s));
-    if (inj && byStatus(inj)) continue; // Out: injury list only.
-    if (inj) {
-      keptStarters.push({
-        ...s,
-        gtdNote: `on the injury report: ${inj.status}${inj.injuryType ? ` (${inj.injuryType.toLowerCase()})` : ""}`,
-      });
-    } else {
-      keptStarters.push({ ...s });
-    }
+    if (inj && isOut(inj)) continue; // Out: injury list only.
+    kept.push(inj ? { ...s, gtdNote: note(inj) } : { ...s });
+  }
+
+  // A lineup always has five: backfill removed starters with the healthy
+  // bench minutes leaders from the same game, marked as projected.
+  for (const b of ts.bench ?? []) {
+    if (kept.length >= 5) break;
+    if (kept.some((k) => k.id === b.id)) continue;
+    const inj = injView.all.find((i) => matches(i, b));
+    if (inj && isOut(inj)) continue;
+    kept.push(inj ? { ...b, projected: true, gtdNote: note(inj) } : { ...b, projected: true });
   }
 
   const remainingInjuries = injView.all.filter((i) => {
-    const isStarter = starters.some((s) => matches(i, s));
-    return !isStarter || byStatus(i); // GTD starters leave the injury list.
+    const inLineup = kept.some((s) => matches(i, s));
+    return !inLineup || isOut(i); // Shown-in-lineup GTD players leave the injury list.
   });
 
   return {
-    starters: keptStarters.length > 0 ? keptStarters : null,
+    starters: kept.length > 0 ? kept : null,
     injView: { ...injView, all: remainingInjuries, count: remainingInjuries.length },
   };
 }
