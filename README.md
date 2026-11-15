@@ -32,8 +32,8 @@ are working.
   (aligned, mild or strong disagreement), and a list of
   game-time-decision key players as unpriced uncertainty. Each card also
   shows the market's expected margin (the spread, phrased plainly), the
-  total, devigged win probabilities derived from the moneylines, shown as a
-  bulleted list; records, a per-team matchup projection (opponent
+  total shown only with our own pace-and-efficiency projection beside it
+  (over/under lean), and devigged win probabilities, as a bulleted list; records, a per-team matchup projection (opponent
   defense vs league average), last-10 form and streaks; rest days and
   back-to-backs; a **Last 10 analytics** table aggregated from each
   team's last ten box scores (possession-adjusted net/offensive/defensive

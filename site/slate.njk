@@ -144,7 +144,7 @@ eleventyComputed:
             <ul>
               {%- for s in side.starters %}
               <li>
-                <strong>{{ s.name }}</strong>{% if s.pos %} ({{ s.pos }}){% endif %}{% if s.newToLineup %} — recently entered the starting lineup, often injury cover{% endif %}
+                <strong>{{ s.name }}</strong>{% if s.pos %} ({{ s.pos }}){% endif %}{% if s.newToLineup %} — recently entered the starting lineup, often injury cover{% endif %}{% if s.gtdNote %} — {{ s.gtdNote }}{% endif %}
                 {% if s.trend %}<br>{{ s.trend }}{% endif %}
                 {% if s.indexLine %}<br>{{ s.indexLine }}{% endif %}
               </li>

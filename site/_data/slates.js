@@ -70,6 +70,43 @@ function analyticsRows(away, home) {
   ];
 }
 
+/**
+ * A player appears in exactly one list. Starters listed Out move to the
+ * injury list only (the last game's lineup is stale for them); starters
+ * on the report as day-to-day stay starters with the injury noted inline
+ * and leave the injury list.
+ */
+function reconcileStartersAndInjuries(starters, injView) {
+  if (!starters || injView.all.length === 0) return { starters, injView };
+  const byStatus = (i) => (i.status ?? "").toLowerCase() === "out";
+  const matches = (i, s) =>
+    (i.athleteId && i.athleteId === s.id) || i.athlete === s.name;
+
+  const keptStarters = [];
+  for (const s of starters) {
+    const inj = injView.all.find((i) => matches(i, s));
+    if (inj && byStatus(inj)) continue; // Out: injury list only.
+    if (inj) {
+      keptStarters.push({
+        ...s,
+        gtdNote: `on the injury report: ${inj.status}${inj.injuryType ? ` (${inj.injuryType.toLowerCase()})` : ""}`,
+      });
+    } else {
+      keptStarters.push({ ...s });
+    }
+  }
+
+  const remainingInjuries = injView.all.filter((i) => {
+    const isStarter = starters.some((s) => matches(i, s));
+    return !isStarter || byStatus(i); // GTD starters leave the injury list.
+  });
+
+  return {
+    starters: keptStarters.length > 0 ? keptStarters : null,
+    injView: { ...injView, all: remainingInjuries, count: remainingInjuries.length },
+  };
+}
+
 function restLabel(rest) {
   if (!rest) return "4+ days rest";
   if (rest.backToBack) return "Back-to-back (0 days rest)";
@@ -120,7 +157,7 @@ function finalOddsLine(odds, game) {
   return { provider: odds.provider, items: sentences };
 }
 
-function oddsLine(odds, game, isFinal = false) {
+function oddsLine(odds, game, isFinal = false, awayStats = null, homeStats = null) {
   if (!odds) return null;
   if (isFinal) return finalOddsLine(odds, game);
   const items = [];
@@ -133,7 +170,17 @@ function oddsLine(odds, game, isFinal = false) {
   } else {
     items.push("No spread posted");
   }
-  if (odds.overUnder !== null) items.push(`Total: ${odds.overUnder}`);
+  // The bare total is noise; show it only with our own pace-and-efficiency
+  // projection next to it, so disagreement with the market is visible.
+  if (odds.overUnder !== null && awayStats && homeStats) {
+    const poss = (awayStats.pace + homeStats.pace) / 2;
+    const proj =
+      (poss * (awayStats.ortg + homeStats.ortg + awayStats.drtg + homeStats.drtg)) / 200;
+    const diff = proj - odds.overUnder;
+    const lean =
+      diff >= 4 ? "stats lean over" : diff <= -4 ? "stats lean under" : "in line with the stats";
+    items.push(`Total: ${odds.overUnder} — pace and efficiency project ~${Math.round(proj)}, ${lean}`);
+  }
 
   // Devigged win probabilities from the moneylines, instead of raw prices.
   const pA = impliedProb(odds.awayMoneyline);
@@ -312,23 +359,37 @@ export default async function () {
       let check = null;
       let awayStats = null;
       let homeStats = null;
-      if (g.statusState === "pre") {
-        [awayStats, homeStats] = await Promise.all([
+      let awayStartersList = null;
+      let homeStartersList = null;
+      let awayInjFinal = awayInjView;
+      let homeInjFinal = homeInjView;
+      if (!isFinal) {
+        [awayStats, homeStats, awayStartersList, homeStartersList] = await Promise.all([
           teamAnalytics(g.away.id).catch(() => null),
           teamAnalytics(g.home.id).catch(() => null),
+          teamStarters(g.away.id).catch(() => null),
+          teamStarters(g.home.id).catch(() => null),
         ]);
-        check = lineCheck({
-          game: g,
-          odds,
-          homeForm: form.get(g.home.id) ?? null,
-          awayForm: form.get(g.away.id) ?? null,
-          homeRest: rest.get(g.home.id) ?? null,
-          awayRest: rest.get(g.away.id) ?? null,
-          homeInjuryItems: homeInjView.all,
-          awayInjuryItems: awayInjView.all,
-          homeStats,
-          awayStats,
-        });
+        if (g.statusState === "pre") {
+          // The line check sees the full, unreconciled injury list so that
+          // game-time-decision starters still surface as uncertainty.
+          check = lineCheck({
+            game: g,
+            odds,
+            homeForm: form.get(g.home.id) ?? null,
+            awayForm: form.get(g.away.id) ?? null,
+            homeRest: rest.get(g.home.id) ?? null,
+            awayRest: rest.get(g.away.id) ?? null,
+            homeInjuryItems: homeInjView.all,
+            awayInjuryItems: awayInjView.all,
+            homeStats,
+            awayStats,
+          });
+        }
+        ({ starters: awayStartersList, injView: awayInjFinal } =
+          reconcileStartersAndInjuries(awayStartersList, awayInjView));
+        ({ starters: homeStartersList, injView: homeInjFinal } =
+          reconcileStartersAndInjuries(homeStartersList, homeInjView));
       }
       cards.push({
         recap,
@@ -352,7 +413,7 @@ export default async function () {
             : g.statusDetail,
         away: g.away,
         home: g.home,
-        odds: oddsLine(odds, g, isFinal),
+        odds: oddsLine(odds, g, isFinal, awayStats, homeStats),
         awayForm: form.get(g.away.id) ?? null,
         homeForm: form.get(g.home.id) ?? null,
         awayMatchup: matchupCell(form.get(g.away.id), form.get(g.home.id), leagueAvgPA),
@@ -365,10 +426,10 @@ export default async function () {
           : "–",
         awayRest: restLabel(rest.get(g.away.id) ?? null),
         homeRest: restLabel(rest.get(g.home.id) ?? null),
-        awayInjuries: awayInjView,
-        homeInjuries: homeInjView,
-        awayStarters: isFinal ? null : await teamStarters(g.away.id).catch(() => null),
-        homeStarters: isFinal ? null : await teamStarters(g.home.id).catch(() => null),
+        awayInjuries: awayInjFinal,
+        homeInjuries: homeInjFinal,
+        awayStarters: awayStartersList,
+        homeStarters: homeStartersList,
         hasPrediction: predictedGameIds.has(g.id),
         canPredict: g.statusState === "pre" && !predictedGameIds.has(g.id),
       });
