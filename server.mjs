@@ -27,6 +27,14 @@ import { teamAnalytics } from "./lib/teamstats.mjs";
 import { teamStarters } from "./lib/starters.mjs";
 import { reconcileStartersAndInjuries } from "./lib/lineup.mjs";
 import { syncHistory } from "./lib/history.mjs";
+import { createBuildQueue } from "./lib/build-queue.mjs";
+import { backupPicks } from "./lib/backup.mjs";
+import { picksCsv } from "./lib/export.mjs";
+import { CACHE_DIR, DATA_DIR, OUT_DIR, ROOT } from "./lib/paths.mjs";
+
+// Eleventy finds its config and the site folder relative to the current
+// folder, so work from the app's own folder wherever it was started from.
+process.chdir(ROOT);
 
 const PORT = Number(process.env.PORT ?? 3000);
 // Only this computer can reach the app. Set HOST (and EDGEBOARD_ALLOWED_HOSTS)
@@ -41,8 +49,13 @@ const ALLOWED_HOSTS = new Set([
     .map((h) => h.trim().toLowerCase())
     .filter(Boolean),
 ]);
-const OUT = path.resolve("_site");
-const STATUS_FILE = path.resolve(".cache", "edgeboard-status.json");
+const OUT = OUT_DIR;
+const STATUS_FILE = path.join(DATA_DIR, "status.json");
+// Earlier versions kept the status in the download cache.
+const OLD_STATUS_FILE = path.join(CACHE_DIR, "edgeboard-status.json");
+const BACKUP_EVERY_MS = 24 * 60 * 60 * 1000;
+// For tests and development: skip the lineup-history download.
+const HISTORY_SYNC_ENABLED = process.env.EDGEBOARD_NO_HISTORY_SYNC !== "1";
 // Pages rebuild on request once the last build is older than this. Nothing
 // runs while nobody is looking, so an idle server makes no ESPN requests.
 const STALE_AFTER_MS = Number(process.env.EDGEBOARD_STALE_MS) || 5 * 60 * 1000;
@@ -65,9 +78,8 @@ const MIME = {
 
 /* ------------------------------- building ------------------------------- */
 
-let building = null;
-let queued = null;
 let lastBuiltAt = 0;
+let lastBackupAt = 0;
 let lastPrunedAt = 0;
 
 // Connection status, kept across restarts so the footer can say when data
@@ -78,10 +90,13 @@ const status = {
   lastOnlineAt: null, // ISO time of the last successful contact with ESPN.
   buildFailed: false, // The last build threw; older pages are being shown.
 };
-try {
-  status.lastOnlineAt = JSON.parse(await fs.readFile(STATUS_FILE, "utf8")).lastOnlineAt ?? null;
-} catch {
-  // First run, or the cache was cleared.
+for (const file of [STATUS_FILE, OLD_STATUS_FILE]) {
+  try {
+    status.lastOnlineAt = JSON.parse(await fs.readFile(file, "utf8")).lastOnlineAt ?? null;
+    break;
+  } catch {
+    // First run, or not saved here.
+  }
 }
 
 async function saveStatus() {
@@ -121,7 +136,7 @@ async function doBuild() {
   // exists, and the page notice says so.
   const started = Date.now();
   try {
-    const elev = new Eleventy("site", "_site", { quietMode: true });
+    const elev = new Eleventy("site", OUT, { quietMode: true });
     await elev.write();
   } catch (e) {
     status.buildFailed = true;
@@ -141,30 +156,17 @@ function logRefreshFailure(e) {
   console.error("Refresh failed; showing the last pages built:", e?.message ?? e);
 }
 
-/** Join the build in progress, or start one. */
-function rebuild() {
-  if (building) return building;
-  building = doBuild().finally(() => {
-    building = null;
-  });
-  return building;
-}
+const builds = createBuildQueue(doBuild);
+const { rebuild, rebuildAfterChange } = builds;
 
-/**
- * A build that starts after this call, for saves: joining a build already
- * in progress could miss the change just written.
- */
-function rebuildAfterChange() {
-  if (!building) return rebuild();
-  if (!queued) {
-    queued = building
-      .catch(() => {})
-      .then(() => {
-        queued = null;
-        return rebuild();
-      });
-  }
-  return queued;
+/** Back up the picks once a day; never blocks a page. */
+function backupInBackground() {
+  lastBackupAt = Date.now();
+  backupPicks()
+    .then((file) => {
+      if (file) console.log(`Backed up your picks to ${path.relative(ROOT, file)}`);
+    })
+    .catch((e) => console.error("Backup failed:", e.message ?? e));
 }
 
 async function prune() {
@@ -188,6 +190,7 @@ let lastHistorySyncAt = 0;
  */
 function syncHistoryInBackground() {
   lastHistorySyncAt = Date.now();
+  if (!HISTORY_SYNC_ENABLED) return;
   syncHistory({ log: (m) => console.log(m) })
     .then(async ({ fetched, failed }) => {
       if (failed > 0) console.log(`Lineup history: ${failed} games will retry on the next sync.`);
@@ -201,15 +204,16 @@ const pagesExist = () =>
 
 /** Before serving a page: refresh if stale, without leaving the tab blank. */
 async function ensureFresh() {
+  if (Date.now() - lastBackupAt > BACKUP_EVERY_MS) backupInBackground();
   if (!status.offline && Date.now() - lastHistorySyncAt > HISTORY_SYNC_EVERY_MS) {
     syncHistoryInBackground();
   }
   const stale = Date.now() - lastBuiltAt > STALE_AFTER_MS;
   const retryTooSoon =
     (status.offline || status.buildFailed) && Date.now() - status.lastAttemptAt < OFFLINE_RETRY_MS;
-  if (!building && (!stale || retryTooSoon)) return;
+  if (!builds.current() && (!stale || retryTooSoon)) return;
 
-  const build = (building ?? rebuild()).catch((e) => {
+  const build = (builds.current() ?? rebuild()).catch((e) => {
     console.error("Refresh failed; showing the last pages built:", e.message ?? e);
   });
   if (await pagesExist()) {
@@ -594,6 +598,15 @@ async function handleRequest(req, res) {
       if (url.pathname === "/") {
         return redirect(res, `/slate/${slateDateEt(0)}/`);
       }
+      if (url.pathname === "/export.csv") {
+        const stamp = new Intl.DateTimeFormat("en-CA").format(new Date());
+        res.writeHead(200, {
+          "content-type": "text/csv; charset=utf-8",
+          "content-disposition": `attachment; filename="edgeboard-picks-${stamp}.csv"`,
+          "cache-control": "no-store",
+        });
+        return res.end(req.method === "HEAD" ? undefined : picksCsv());
+      }
       const isPage = url.pathname.endsWith("/") || url.pathname.endsWith(".html");
       if (isPage) await ensureFresh();
       return await serveStatic(url.pathname, res);
@@ -637,6 +650,8 @@ async function handleRequest(req, res) {
 // Start serving right away when pages from an earlier run exist, and
 // refresh in the background. Only a first-ever run waits for a build, and
 // even then a failed build (offline) does not stop the server.
+backupInBackground();
+
 // Lineup history syncs after the first refresh, once we know ESPN answers.
 const syncIfOnline = () => {
   if (!status.offline) syncHistoryInBackground();

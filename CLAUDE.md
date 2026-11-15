@@ -37,6 +37,16 @@ These rules come from the project owner and apply to every session.
 - The pages run no JavaScript, and the Content-Security-Policy forbids
   it. Do not add scripts or inline styles without discussing it first.
 
+## Testing
+
+- Run `npm test` before every commit; all tests must pass. In a cloud
+  container, prefix it with the proxy settings from the README.
+- New behavior gets a test in `test/`. Tests run against throwaway
+  sandboxes from `test/harness.mjs`; never point a test at the real
+  `data/` folder.
+- Before trusting a new test, break the thing it guards once and watch it
+  fail.
+
 ## Data
 
 - `data/` holds the owner's predictions and is gitignored. Never commit it.

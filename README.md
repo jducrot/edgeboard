@@ -171,6 +171,51 @@ fetch must be told to honor the proxy:
 NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt npm run dev
 ```
 
+## Backups and export
+
+- **Daily backups.** Each day the app first runs, it copies your picks to
+  `data/backups/edgeboard-picks-YYYY-MM-DD.db` and keeps the newest 14.
+  The copy is made with SQLite's online backup, so it is consistent even
+  while the app is writing. To keep backups somewhere safer, set
+  `EDGEBOARD_BACKUP_DIR` to a synced folder such as iCloud Drive or
+  OneDrive. That is safe for these finished copies, but never point the
+  live `data/` folder at a synced folder: syncing a database while it is
+  open can corrupt it. Lineup history is not backed up because it can
+  always be downloaded again.
+- **To restore a backup:** stop the app, delete `data/edgeboard.db` and
+  its `-wal` and `-shm` files, copy the backup to `data/edgeboard.db`,
+  and start the app.
+- **CSV export.** The Review page has a link to download every pick as a
+  spreadsheet (`/export.csv`). Text that a spreadsheet would run as a
+  formula is neutralized.
+
+## Testing
+
+```bash
+npx playwright install chromium
+```
+
+once on a new computer (a test browser, about 150 MB), then:
+
+```bash
+npm test
+```
+
+Twenty tests, about 30 seconds, run against throwaway copies of the data
+(your real picks are never touched). They cover security (only this
+computer can connect, forged forms and foreign addresses are refused,
+safety headers, typed text is never run as code), the pick flow in a real
+browser (save in place, update, changes since your pick), WCAG 2.2 A and
+AA with axe in light and dark schemes, reflow at 320px, offline behavior
+(a fresh copy and a restart), backups, the CSV export, the save-during-
+refresh fix, and the wordmark. The tests need internet for live ESPN
+data; the offline tests simulate having none.
+
+Settings used by the tests, also available to you: `EDGEBOARD_DATA_DIR`,
+`EDGEBOARD_OUT_DIR`, and `EDGEBOARD_CACHE_DIR` move the data, built pages,
+and download cache; `EDGEBOARD_NO_HISTORY_SYNC=1` skips the lineup
+history download.
+
 ## Security and offline behavior
 
 EdgeBoard is built for one person on one computer, and defends that:
