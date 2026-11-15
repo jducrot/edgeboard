@@ -337,30 +337,22 @@ export default async function () {
       ? paValues.reduce((a, b) => a + b, 0) / paValues.length
       : null;
 
-  const slates = [];
-  for (const ymd of ymds) {
-    const [games, rest] = await Promise.all([
-      getScoreboard(ymd),
-      getRestByTeamId(ymd),
-    ]);
-    const cards = [];
-    for (const g of games) {
-      const odds = await getOdds(g.id);
+  // Every slate, and every game within it, builds concurrently. The memo
+  // layer in lib/espn.mjs merges duplicate requests, and eleventy-fetch's
+  // queue caps network concurrency.
+  const buildCard = async (g, rest) => {
       const isFinal = g.statusState === "post";
-      let recap = null;
-      if (isFinal) {
-        try {
-          recap = await getGameRecap(g.id);
-        } catch {
-          recap = null; // Recaps are best effort.
-        }
-      }
-      const awayInjView = isFinal
-        ? { teamName: g.away.displayName, count: 0, all: [] }
-        : await injuryView(g.away.displayName, g.away.id, injuries.get(g.away.id) ?? []);
-      const homeInjView = isFinal
-        ? { teamName: g.home.displayName, count: 0, all: [] }
-        : await injuryView(g.home.displayName, g.home.id, injuries.get(g.home.id) ?? []);
+      const emptyInj = (team) => ({ teamName: team.displayName, count: 0, all: [] });
+      const [odds, recap, awayInjView, homeInjView] = await Promise.all([
+        getOdds(g.id),
+        isFinal ? getGameRecap(g.id).catch(() => null) : null,
+        isFinal
+          ? emptyInj(g.away)
+          : injuryView(g.away.displayName, g.away.id, injuries.get(g.away.id) ?? []),
+        isFinal
+          ? emptyInj(g.home)
+          : injuryView(g.home.displayName, g.home.id, injuries.get(g.home.id) ?? []),
+      ]);
       let check = null;
       let awayStats = null;
       let homeStats = null;
@@ -396,7 +388,7 @@ export default async function () {
         ({ starters: homeStartersList, injView: homeInjFinal } =
           reconcileStartersAndInjuries(homeStartersList, homeInjView));
       }
-      cards.push({
+      return {
         recap,
         isFinal,
         knowable: isFinal
@@ -437,17 +429,27 @@ export default async function () {
         homeStarters: homeStartersList,
         hasPrediction: predictedGameIds.has(g.id),
         canPredict: g.statusState === "pre" && !predictedGameIds.has(g.id),
-      });
-    }
-    slates.push({
-      ymd,
-      label: labelForYmd(ymd),
-      isToday: ymd === todayYmd,
-      navLabel:
-        ymd === todayYmd ? "Today" : ymd === ymds[0] ? "Yesterday" : "Tomorrow",
-      games: cards,
-    });
-  }
+      };
+  };
+
+  const slates = await Promise.all(
+    ymds.map(async (ymd) => {
+      const [games, rest] = await Promise.all([
+        getScoreboard(ymd),
+        getRestByTeamId(ymd),
+      ]);
+      // Promise.all preserves input order, so cards keep scoreboard order.
+      const cards = await Promise.all(games.map((g) => buildCard(g, rest)));
+      return {
+        ymd,
+        label: labelForYmd(ymd),
+        isToday: ymd === todayYmd,
+        navLabel:
+          ymd === todayYmd ? "Today" : ymd === ymds[0] ? "Yesterday" : "Tomorrow",
+        games: cards,
+      };
+    }),
+  );
 
   normalizeStarterIndices(slates);
   return slates;
@@ -461,16 +463,23 @@ export default async function () {
  * 40% steals, 40% blocks, 20% rebounds, all per 36.
  */
 function normalizeStarterIndices(slates) {
-  const rows = new Set();
+  // Every displayed row gets an index, but each player counts once in the
+  // sample: a team on two slate days would otherwise be double-weighted.
+  const rows = [];
+  const byPlayer = new Map();
   for (const s of slates) {
     for (const game of s.games) {
       for (const list of [game.awayStarters, game.homeStarters]) {
         if (!list) continue;
-        for (const r of list) if (r.raw) rows.add(r);
+        for (const r of list) {
+          if (!r.raw) continue;
+          rows.push(r);
+          if (!byPlayer.has(r.id)) byPlayer.set(r.id, r);
+        }
       }
     }
   }
-  const sample = [...rows];
+  const sample = [...byPlayer.values()];
   if (sample.length < 20) return; // Too few players to normalize honestly.
 
   const comps = ["pts36", "ts", "astNet36", "stl36", "blk36", "reb36"];
@@ -489,7 +498,7 @@ function normalizeStarterIndices(slates) {
       ? 0
       : (r.raw[c] - stats[c].mean) / stats[c].sd;
 
-  for (const r of sample) {
+  for (const r of rows) {
     const off =
       100 + 15 * (0.45 * z(r, "pts36") + 0.3 * z(r, "ts") + 0.25 * z(r, "astNet36"));
     const def =

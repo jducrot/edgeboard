@@ -16,8 +16,9 @@ are working.
   with Nunjucks templates. No client-side JavaScript at all.
 - A small dependency-free Node server (`server.mjs`) serves the built site,
   handles the three form endpoints (`/predict`, `/retro`, `/refresh`),
-  writes to SQLite, and rebuilds the site when data changes. It also
-  rebuilds every 5 minutes so lines and injury news stay fresh.
+  writes to SQLite, and rebuilds the site when data changes. Pages also
+  rebuild on visit once the last build is more than 5 minutes old, so an
+  idle server makes no requests at all.
 - SQLite (better-sqlite3) stores predictions at `data/edgeboard.db`,
   created on first use and gitignored. Your picks never leave your machine.
 
@@ -77,10 +78,22 @@ All free, no API keys:
 - `site.api.espn.com` — scoreboard, standings, injuries
 - `sports.core.api.espn.com` — betting odds, including open vs. current lines
 
-Responses are cached on disk (`.cache/`) by `@11ty/eleventy-fetch`: odds and
-scoreboards for 2 minutes, injuries for 10, standings for 30. Rest days are
-computed from the previous four days of scoreboards. Odds are enrichment:
-cards render fine before lines are posted.
+Caching, fastest layer first:
+
+1. An in-memory memo (60 seconds) merges identical requests, so one build
+   reads each response once even with every game building in parallel.
+2. `@11ty/eleventy-fetch` caches responses on disk in `.cache/`: odds and
+   scoreboards for 2 minutes, injuries for 10, standings for 30, team
+   schedules for 1 hour, player game logs for 3 hours. Schedules and game
+   logs are large and only change when a game ends.
+3. Finished-game summaries are stored permanently in `.cache/summaries/`,
+   stripped to the fields the app reads (about 42 KB instead of 475 KB).
+
+The server prunes `.cache/` at startup and then at most daily: fetch
+responses unused for 2 days and summaries older than 45 days (last-10
+analytics reach back about three weeks). Rest days are computed from the
+previous four days of scoreboards. Odds are enrichment: cards render fine
+before lines are posted.
 
 Note: `stats.nba.com` (true net rating, pace) blocks datacenter IPs, so it is
 not used yet.
@@ -94,9 +107,11 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:3000. The site builds once on startup, rebuilds
-every 5 minutes, after every saved prediction or retrospective, and on the
-"Refresh data now" button in the footer.
+Then open http://localhost:3000. The site builds once on startup (about 6
+seconds cold, about 1 second warm), then rebuilds when you load a page more
+than 5 minutes after the last build, after every saved prediction or note,
+and on the "Refresh data now" button in the footer. To change the 5-minute
+window, set `EDGEBOARD_STALE_MS` in milliseconds.
 
 After pulling code changes, restart the server (Ctrl+C, then `npm run dev`
 again). The running process keeps old code in Node's module cache, so a
@@ -113,13 +128,16 @@ NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt npm run dev
 
 WCAG 2.2 AA is the baseline. The current build passes axe-core (WCAG
 2.0/2.1/2.2 A and AA rule tags) with zero violations on both pages in light
-and dark schemes. Because there is no client JavaScript, every interaction is
+and dark schemes, and reflows without horizontal scrolling down to 320px
+(Success Criterion 1.4.10). The layout uses the full window width: game
+cards fill as many 32rem-minimum columns as fit, and in-card columns
+respond to the card's width through container queries, not the window's. Because there is no client JavaScript, every interaction is
 a native form submission with a full page response, so there are no live
 regions, hydration gaps, or client state to announce.
 
 Semantics worth preserving when editing: one `h1` per page, game cards are
 `article` elements labelled by their heading, stat comparisons are real
-tables with row and column headers, line movement is conveyed in text rather
+tables with row and column headers, every signal is conveyed in text rather
 than color alone, form feedback arrives as a navigated page (the review page
 after a save, a descriptive error page with a way back on invalid input), and
 interactive targets are at least 44px tall.

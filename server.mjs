@@ -12,6 +12,7 @@ import {
   getRestByTeamId,
   getScoreboard,
   getTeamFormByTeamId,
+  pruneCache,
   slateDateEt,
   toEtDateString,
 } from "./lib/espn.mjs";
@@ -25,7 +26,10 @@ import { teamAnalytics } from "./lib/teamstats.mjs";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const OUT = path.resolve("_site");
-const REBUILD_EVERY_MS = 5 * 60 * 1000;
+// Pages rebuild on request once the last build is older than this. Nothing
+// runs while nobody is looking, so an idle server makes no ESPN requests.
+const STALE_AFTER_MS = Number(process.env.EDGEBOARD_STALE_MS) || 5 * 60 * 1000;
+const PRUNE_EVERY_MS = 24 * 60 * 60 * 1000;
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -39,17 +43,57 @@ const MIME = {
 /* ------------------------------- building ------------------------------- */
 
 let building = null;
+let lastBuiltAt = 0;
+let lastPrunedAt = 0;
 
 async function rebuild() {
   // Coalesce concurrent requests into one build.
   if (building) return building;
   building = (async () => {
+    const started = Date.now();
     const elev = new Eleventy("site", "_site", { quietMode: true });
     await elev.write();
+    lastBuiltAt = Date.now();
+    console.log(`Rebuilt in ${((lastBuiltAt - started) / 1000).toFixed(1)}s`);
   })().finally(() => {
     building = null;
   });
   return building;
+}
+
+async function prune() {
+  lastPrunedAt = Date.now();
+  try {
+    const { fetchRemoved, summaryRemoved } = await pruneCache();
+    if (fetchRemoved + summaryRemoved > 0) {
+      console.log(`Cache pruned: ${fetchRemoved} expired responses, ${summaryRemoved} old summaries.`);
+    }
+  } catch (e) {
+    console.error("Cache prune failed:", e);
+  }
+}
+
+/** Called before serving a page: rebuild if stale, prune at most daily. */
+async function ensureFresh() {
+  if (Date.now() - lastPrunedAt > PRUNE_EVERY_MS) prune(); // Background.
+  if (Date.now() - lastBuiltAt <= STALE_AFTER_MS) return;
+  try {
+    await rebuild();
+  } catch (e) {
+    // ESPN down or similar: serve the last good build rather than an error.
+    console.error("Rebuild failed; serving the previous build:", e);
+  }
+}
+
+/** Same-site path from the Referer header, or the home page. */
+function backPath(req) {
+  try {
+    const ref = new URL(req.headers.referer ?? "");
+    if (ref.host === req.headers.host) return ref.pathname;
+  } catch {
+    // Missing or malformed header.
+  }
+  return "/";
 }
 
 /* ------------------------------ html helpers ---------------------------- */
@@ -251,6 +295,8 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === "/") {
         return redirect(res, `/slate/${slateDateEt(0)}/`);
       }
+      const isPage = url.pathname.endsWith("/") || url.pathname.endsWith(".html");
+      if (isPage) await ensureFresh();
       return await serveStatic(url.pathname, res);
     }
     if (req.method === "POST") {
@@ -259,7 +305,7 @@ const server = http.createServer(async (req, res) => {
       if (url.pathname === "/retro") return await handleRetro(form, res);
       if (url.pathname === "/refresh") {
         await rebuild();
-        return redirect(res, req.headers.referer ?? "/");
+        return redirect(res, backPath(req));
       }
       return sendError(res, 404, "Not found", "That action does not exist.");
     }
@@ -276,13 +322,15 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+await prune();
 console.log("Building site…");
 await rebuild();
-setInterval(() => {
-  rebuild().catch((e) => console.error("Scheduled rebuild failed:", e));
-}, REBUILD_EVERY_MS);
 
 server.listen(PORT, () => {
   console.log(`EdgeBoard running at http://localhost:${PORT}`);
-  console.log(`Data refreshes every ${REBUILD_EVERY_MS / 60000} minutes, or use the Refresh button.`);
+  const window =
+    STALE_AFTER_MS >= 60_000
+      ? `${Math.round(STALE_AFTER_MS / 60_000)} minutes`
+      : `${Math.round(STALE_AFTER_MS / 1000)} seconds`;
+  console.log(`Pages refresh on visit when older than ${window}, or use the Refresh button.`);
 });

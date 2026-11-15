@@ -9,7 +9,7 @@ navCurrent: review
 <p>{{ journal.summary }}</p>
 
 {% if journal.predictions.length > 0 %}
-<ul class="card-grid single-col" role="list">
+<ul class="card-grid" role="list">
   {%- for p in journal.predictions %}
   <li>
     <article aria-labelledby="pred-{{ p.id }}-heading" class="card">

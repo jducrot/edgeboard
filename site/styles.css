@@ -49,11 +49,12 @@ body {
   flex-direction: column;
 }
 
+/* Full-width layout: the page uses the whole window, with a gutter that
+   grows a little on large screens. */
 .shell {
   width: 100%;
-  max-width: 64rem;
   margin-inline: auto;
-  padding-inline: 1rem;
+  padding-inline: clamp(1rem, 2.5vw, 2.5rem);
 }
 
 main.shell {
@@ -209,18 +210,16 @@ a {
 
 /* Cards */
 
+/* As many columns as fit at 32rem minimum each: 1 on phones, 2 on a
+   laptop, 3 on a 1920px monitor, 4 on 2560px. min() keeps a single column
+   from overflowing very narrow screens. */
 .card-grid {
   display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 32rem), 1fr));
   gap: 1rem;
   list-style: none;
   margin: 1.5rem 0 0;
   padding: 0;
-}
-
-@media (min-width: 60rem) {
-  .card-grid:not(.single-col) {
-    grid-template-columns: 1fr 1fr;
-  }
 }
 
 .card {
@@ -229,6 +228,7 @@ a {
   border-radius: 8px;
   padding: 1rem;
   height: 100%;
+  container-type: inline-size;
 }
 
 .card h2 {
@@ -328,6 +328,22 @@ tbody th {
   font-weight: 500;
 }
 
+/* WCAG 1.4.10 Reflow: at 320px a three-column table cannot shrink below
+   its longest unbreakable strings, so let cells break them in very narrow
+   cards only. */
+@container (max-width: 22rem) {
+  th,
+  td {
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 24rem) {
+  .card {
+    padding: 0.75rem;
+  }
+}
+
 /* Injuries */
 
 .injury-cols {
@@ -335,7 +351,8 @@ tbody th {
   gap: 0 1rem;
 }
 
-@media (min-width: 40rem) {
+/* Sized by the card, not the window, so it works at any column count. */
+@container (min-width: 28rem) {
   .injury-cols {
     grid-template-columns: 1fr 1fr;
   }
@@ -404,7 +421,7 @@ input[type="checkbox"] {
   margin-top: 0.5rem;
 }
 
-@media (min-width: 40rem) {
+@container (min-width: 28rem) {
   .field-row {
     grid-template-columns: 1fr 1fr;
   }
