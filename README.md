@@ -62,7 +62,9 @@ are working.
   Each starter has a hot/cold/steady scoring trend over their last five
   appearances against the five before, and a marker when a player entered
   the lineup within the last several games, which usually means injury
-  cover. Each starter also carries two normalized
+  cover. Above each lineup, "Starters O:, Starters DA:" gives the five's
+  average indices (the average, not the sum, so 100 still means an average
+  starter). Each starter also carries two normalized
   indices: an offense index (45% points per 36, 30% true shooting, 25%
   assists minus turnovers per 36) and a defensive activity index (40%
   steals, 40% blocks, 20% rebounds, per 36), z-scored across every
