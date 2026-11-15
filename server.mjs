@@ -22,6 +22,7 @@ import {
   listPredictionsForGame,
   saveRetro,
 } from "./lib/db.mjs";
+import { teamAnalytics } from "./lib/teamstats.mjs";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const OUT = path.resolve("_site");
@@ -166,11 +167,13 @@ async function handlePredict(form, res) {
     return fail("This game has already started. Predictions lock at tipoff.");
   }
 
-  const [odds, form_, injuries, rest] = await Promise.all([
+  const [odds, form_, injuries, rest, homeStats10, awayStats10] = await Promise.all([
     getOdds(gameId),
     getTeamFormByTeamId(),
     getInjuriesByTeamId(),
     getRestByTeamId(slateDate),
+    teamAnalytics(game.home.id).catch(() => null),
+    teamAnalytics(game.away.id).catch(() => null),
   ]);
 
   const snapshot = {
@@ -182,6 +185,8 @@ async function handlePredict(form, res) {
     awayInjuries: injuries.get(game.away.id) ?? [],
     homeRest: rest.get(game.home.id) ?? null,
     awayRest: rest.get(game.away.id) ?? null,
+    homeStats10,
+    awayStats10,
     capturedAtUtc: new Date().toISOString(),
   };
 

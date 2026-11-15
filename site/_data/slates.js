@@ -15,6 +15,7 @@ import { playerImpact } from "../../lib/impact.mjs";
 import { getGameRecap } from "../../lib/recap.mjs";
 import { teamStarters } from "../../lib/starters.mjs";
 import { lineCheck } from "../../lib/linecheck.mjs";
+import { teamAnalytics } from "../../lib/teamstats.mjs";
 
 function fmt(n, digits = 1) {
   return n === null || n === undefined ? "–" : Number(n).toFixed(digits);
@@ -41,6 +42,32 @@ function matchupCell(team, opponent, leagueAvgPA) {
   const sign = r > 0 ? "+" : "";
   const word = r > 1 ? "easier" : r < -1 ? "tougher" : "neutral";
   return `${sign}${r} ${word} (proj ${fmt(proj)}, usual ${fmt(team.avgPointsFor)})`;
+}
+
+/** Rows for the last-10 analytics table; null when either side lacks data. */
+function analyticsRows(away, home) {
+  if (!away || !home) return null;
+  const f1 = (n) => (n === null ? "–" : (Math.round(n * 10) / 10).toString());
+  const signed = (n) => (n > 0 ? `+${f1(n)}` : f1(n));
+  const rate = (n) => (n === null ? "–" : `.${Math.round(n * 100).toString().padStart(2, "0")}`);
+  const cell = {
+    net: (t) => `${signed(t.net)} (${f1(t.ortg)} off, ${f1(t.drtg)} def)`,
+    pace: (t) => f1(t.pace),
+    efg: (t) => `${f1(t.efg)} / ${f1(t.efgAllowed)}`,
+    tov: (t) => `${signed(t.tovForcedPct - t.tovPct)} (forced ${f1(t.tovForcedPct)}, committed ${f1(t.tovPct)})`,
+    orb: (t) => f1(t.orbPct),
+    ft: (t) => `${rate(t.ftRate)} / ${rate(t.ftRateAllowed)}`,
+    three: (t) => `${f1(t.tpaPerGame)} att at ${f1(t.tpPct)}%; opp ${f1(t.oppTpPct)}%`,
+  };
+  return [
+    { label: "Net rating (per 100)", away: cell.net(away), home: cell.net(home) },
+    { label: "Pace (possessions/game)", away: cell.pace(away), home: cell.pace(home) },
+    { label: "eFG% for / against", away: cell.efg(away), home: cell.efg(home) },
+    { label: "Turnover battle (%)", away: cell.tov(away), home: cell.tov(home) },
+    { label: "Off. rebound %", away: cell.orb(away), home: cell.orb(home) },
+    { label: "FT rate for / against", away: cell.ft(away), home: cell.ft(home) },
+    { label: "3-point profile", away: cell.three(away), home: cell.three(home) },
+  ];
 }
 
 function restLabel(rest) {
@@ -321,7 +348,13 @@ export default async function () {
         ? { teamName: g.home.displayName, count: 0, visible: [], more: [] }
         : await injuryView(g.home.displayName, g.home.id, injuries.get(g.home.id) ?? []);
       let check = null;
+      let awayStats = null;
+      let homeStats = null;
       if (g.statusState === "pre") {
+        [awayStats, homeStats] = await Promise.all([
+          teamAnalytics(g.away.id).catch(() => null),
+          teamAnalytics(g.home.id).catch(() => null),
+        ]);
         check = lineCheck({
           game: g,
           odds,
@@ -331,6 +364,8 @@ export default async function () {
           awayRest: rest.get(g.away.id) ?? null,
           homeInjuryItems: [...homeInjView.visible, ...homeInjView.more],
           awayInjuryItems: [...awayInjView.visible, ...awayInjView.more],
+          homeStats,
+          awayStats,
         });
       }
       cards.push({
@@ -346,6 +381,7 @@ export default async function () {
             )
           : null,
         lineCheck: check ? check.text : null,
+        analyticsRows: g.statusState === "pre" ? analyticsRows(awayStats, homeStats) : null,
         id: g.id,
         heading: `${g.away.displayName} at ${g.home.displayName}`,
         statusLine:

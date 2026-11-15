@@ -101,6 +101,30 @@ eleventyComputed:
         </tbody>
       </table>
 
+      {% if game.analyticsRows %}
+      <h3>Last 10 analytics</h3>
+      <table>
+        <caption class="visually-hidden">Last ten games analytics for {{ game.away.displayName }} and {{ game.home.displayName }}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Signal</th>
+            <th scope="col">{{ game.away.abbreviation }} (away)</th>
+            <th scope="col">{{ game.home.abbreviation }} (home)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {%- for row in game.analyticsRows %}
+          <tr>
+            <th scope="row">{{ row.label }}</th>
+            <td>{{ row.away }}</td>
+            <td>{{ row.home }}</td>
+          </tr>
+          {%- endfor %}
+        </tbody>
+      </table>
+      <p class="muted">Possession-adjusted, from each team's last 10 box scores. Opponent 3-point % is mostly luck and tends to regress.</p>
+      {% endif %}
+
       {% if not game.isFinal %}
       <div class="injury-cols">
         {%- for side in [
