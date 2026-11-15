@@ -25,16 +25,21 @@ are working.
 
 - **Slate** (`/`, redirects to `/slate/YYYYMMDD/`): game cards for
   yesterday, today, and tomorrow. Each pregame card opens with a **Line
-  check**: a transparent stats-only margin estimate (season scoring
-  margins, home court at +2.5, back-to-backs at -2, fresh key absences at
-  -3 each capped at -6) compared against the spread, with every component
-  named, a verdict (aligned, mild or strong disagreement), and a list of
+  check**: a transparent stats-only margin estimate (pace-scaled last-10
+  net ratings when available, else season scoring margins; home court at
+  +2.5; back-to-backs at -2; fresh key absences at -3 each capped at -6)
+  compared against the spread, with every component named, a verdict
+  (aligned, mild or strong disagreement), and a list of
   game-time-decision key players as unpriced uncertainty. Each card also
   shows the market's expected margin (the spread, phrased plainly), the
   total, devigged win probabilities derived from the moneylines, and
-  movement from open;
-  records, scoring averages, last-10 form and streaks; rest days and
-  back-to-backs; and both teams' injury reports. Each listed player gets
+  movement from open; records, a per-team matchup projection (opponent
+  defense vs league average), last-10 form and streaks; rest days and
+  back-to-backs; a **Last 10 analytics** table aggregated from each
+  team's last ten box scores (possession-adjusted net/offensive/defensive
+  ratings, pace, eFG% for and against, turnover battle, offensive
+  rebound %, FT rate, and the three-point profile with opponent 3P% as a
+  regression flag); and both teams' injury reports. Each listed player gets
   an impact line (their recent production when playing) and an absence
   context line: a fresh absence whose production goes missing tonight, or
   one already reflected in the team's recent record, with the team's W-L
