@@ -1,0 +1,32 @@
+# Project rules for EdgeBoard
+
+These rules come from the project owner and apply to every session.
+
+## Wordmark
+
+- The product name is the wordmark **EdgeBoard**: capital E, capital B,
+  one word. Never alter it in any way, anywhere: not in pages, titles,
+  messages, docs, commit messages, or chat replies. No lowercasing, no
+  uppercasing, no spacing, no restyling, no CSS that transforms it.
+- Lowercase `edgeboard` exists only as a technical identifier that must
+  match exactly to work: the folder and GitHub repository name, the npm
+  package name (npm forbids capitals), and the database file name. Always
+  show those in code formatting so they read as identifiers, not the name.
+- A build guard in `eleventy.config.js` fails the build if any page shows
+  the name in another form. Do not weaken or remove it.
+
+## Decisions
+
+- Always ask before choosing or changing the tech stack, a framework, or a
+  major library. Present options and a recommendation, then wait.
+
+## Accessibility
+
+- WCAG 2.2 level A and AA are mandatory for every change. Verify with
+  axe-core in light and dark schemes, and check reflow with no horizontal
+  scrolling at 320px (Success Criterion 1.4.10).
+- Convey every signal in text, never by color alone.
+
+## Data
+
+- `data/` holds the owner's predictions and is gitignored. Never commit it.
