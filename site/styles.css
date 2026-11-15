@@ -576,3 +576,18 @@ li.changed {
 .changes h3 {
   margin-top: 0.5rem;
 }
+
+/* Insights: research prose reads best at a moderate line length. */
+.insight p {
+  max-width: 75ch;
+}
+
+.insight table {
+  max-width: 60rem;
+}
+
+.insight caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: 0.25rem;
+}

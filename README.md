@@ -87,6 +87,18 @@ are working.
   two or three box-score factors that decided it, top performers, and who
   was listed out for that game. It is rule-based text from the box score,
   labelled as such.
+- **Cohesion** (on pregame cards): how long each team's projected
+  starters have played together, from a lineup history of every game
+  last season and this one, playoffs included: starts together for this
+  exact five, the average starts together across the five's 10 pairs, and
+  the share of this season's minutes from players who were on the team
+  last season.
+- **Insights** (`/insights/`): research results. First question: does the
+  more cohesive team beat the spread? Every game is scored using only
+  games played before it, results are shown by slice with 95% ranges, and
+  the verdict states plainly when a result is indistinguishable from
+  chance. Cohesion stays out of the Line check unless this test shows an
+  edge.
 - **Review** (`/review/`): every prediction with its outcome. Finished games
   are graded automatically at build time. Graded predictions get an automatically
   computed retrospective (your pick vs the market's pick vs the result,
@@ -100,6 +112,12 @@ All free, no API keys:
 
 - `site.api.espn.com` — scoreboard, standings, injuries
 - `sports.core.api.espn.com` — betting odds, including open vs. current lines
+
+Lineup history lives in `data/history.db`, separate from your picks so it
+can be deleted and rebuilt at any time. The server fills it in the
+background on first start (about 1,500 games in under a minute; pages work
+meanwhile) and then fetches only newly finished games, at most hourly. A
+game ESPN has no box score for is skipped rather than retried forever.
 
 Caching, fastest layer first:
 

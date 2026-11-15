@@ -1,0 +1,42 @@
+---
+layout: layout.njk
+permalink: "/insights/"
+title: "Insights"
+navCurrent: insights
+---
+<h1>Insights</h1>
+
+<section aria-labelledby="cohesion-heading" class="card insight">
+  <h2 id="cohesion-heading">Does cohesion beat the spread?</h2>
+  {% if insights.cohesion %}
+  <p>Every game from last season and this one, scored by how many games each team's starters had started together <strong>before</strong> that game. The question: does the more cohesive team cover the spread more often than chance?</p>
+  <p><strong>{{ insights.cohesion.verdict }}</strong></p>
+  {% if insights.cohesion.caution %}<p>{{ insights.cohesion.caution }}</p>{% endif %}
+  <table>
+    <caption>More cohesive team against the spread, by slice</caption>
+    <thead>
+      <tr>
+        <th scope="col">Slice</th>
+        <th scope="col">Games</th>
+        <th scope="col">Covered</th>
+        <th scope="col">Likely range (95%)</th>
+        <th scope="col">Won outright</th>
+      </tr>
+    </thead>
+    <tbody>
+      {%- for g in insights.cohesion.groups %}
+      <tr>
+        <th scope="row">{{ g.label }}</th>
+        <td>{{ g.games }}</td>
+        <td>{{ g.cover }}</td>
+        <td>{{ g.range }}</td>
+        <td>{{ g.won }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  <p class="muted">Profit at standard -110 odds needs {{ insights.cohesion.breakEven }}%. A slice only counts as evidence when its whole likely range clears that. Games where a team had fewer than 10 games of history are left out, as are pushes. Cohesion is measured as the average number of starts each pair in the starting five had made together. Updated as new games finish.</p>
+  {% else %}
+  <p>Lineup history is still downloading. It takes under a minute on first run; refresh shortly.</p>
+  {% endif %}
+</section>

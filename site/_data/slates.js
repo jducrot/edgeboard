@@ -16,6 +16,7 @@ import { getGameRecap } from "../../lib/recap.mjs";
 import { teamStarters } from "../../lib/starters.mjs";
 import { reconcileStartersAndInjuries } from "../../lib/lineup.mjs";
 import { compareToSnapshot } from "../../lib/changes.mjs";
+import { cohesionIndex, lineupCohesion } from "../../lib/cohesion.mjs";
 import { lineCheck } from "../../lib/linecheck.mjs";
 import { teamAnalytics } from "../../lib/teamstats.mjs";
 
@@ -114,6 +115,32 @@ function rankRows(ranks, awayId, homeId) {
       { label: "Defense (points allowed per 100)", away: cell(a, "def"), home: cell(h, "def") },
       { label: "Rebounding (share of all boards)", away: cell(a, "reb"), home: cell(h, "reb") },
       { label: "3-point shooting %", away: cell(a, "three"), home: cell(h, "three") },
+    ],
+  };
+}
+
+/** Cohesion of each team's projected five, as table rows. */
+function cohesionRows(index, g, awayStarters, homeStarters) {
+  const a = lineupCohesion(index, g.away.id, awayStarters?.map((s) => s.id));
+  const h = lineupCohesion(index, g.home.id, homeStarters?.map((s) => s.id));
+  if (!a && !h) return null;
+  const five = (c) => {
+    if (!c) return "–";
+    if (c.fiveAll === 0) return "First start together";
+    return c.fiveThisSeason > 0 && c.fiveThisSeason !== c.fiveAll
+      ? `${c.fiveAll} (${c.fiveThisSeason} this season)`
+      : `${c.fiveAll}`;
+  };
+  return {
+    typicalPair: index.typicalPair !== null ? Math.round(index.typicalPair) : null,
+    rows: [
+      { label: "This five, starts together", away: five(a), home: five(h) },
+      { label: "Average pair, starts together", away: a ? `${a.pairAvg}` : "–", home: h ? `${h.pairAvg}` : "–" },
+      {
+        label: "Minutes from players here last season",
+        away: a?.returningPct !== null && a ? `${a.returningPct}%` : "–",
+        home: h?.returningPct !== null && h ? `${h.returningPct}%` : "–",
+      },
     ],
   };
 }
@@ -400,6 +427,16 @@ export default async function () {
   // teams playing, so "5th of 30" means what it says.
   const leagueRanks = await leagueRankings([...form.keys()]);
 
+  // Lineup history may still be downloading on a first run; cards simply
+  // omit cohesion until it is there.
+  let cohesion = null;
+  try {
+    const idx = cohesionIndex();
+    if (idx.gamesCovered > 0) cohesion = idx;
+  } catch {
+    cohesion = null;
+  }
+
   const paValues = [...form.values()]
     .map((f) => f.avgPointsAgainst)
     .filter((v) => v !== null && Number.isFinite(v));
@@ -520,6 +557,9 @@ export default async function () {
         analyticsRows: g.statusState === "pre" ? analyticsRows(awayStats, homeStats) : null,
         rankRows: g.statusState === "pre"
           ? rankRows(leagueRanks, g.away.id, g.home.id)
+          : null,
+        cohesion: !isFinal && cohesion
+          ? cohesionRows(cohesion, g, awayStartersList, homeStartersList)
           : null,
         id: g.id,
         heading: `${g.away.displayName} at ${g.home.displayName}`,

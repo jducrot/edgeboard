@@ -158,6 +158,30 @@ eleventyComputed:
       <p class="muted">1st is best. Whole team, not just the starters.</p>
       {% endif %}
 
+      {% if game.cohesion %}
+      <h3>Cohesion</h3>
+      <table>
+        <caption class="visually-hidden">How long each team's projected starters have played together</caption>
+        <thead>
+          <tr>
+            <th scope="col">Projected starters</th>
+            <th scope="col">{{ game.away.abbreviation }} (away)</th>
+            <th scope="col">{{ game.home.abbreviation }} (home)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {%- for row in game.cohesion.rows %}
+          <tr>
+            <th scope="row">{{ row.label }}</th>
+            <td>{{ row.away }}</td>
+            <td>{{ row.home }}</td>
+          </tr>
+          {%- endfor %}
+        </tbody>
+      </table>
+      <p class="muted">Counts cover last season and this one, playoffs included.{% if game.cohesion.typicalPair %} A typical lineup's average pair this season: {{ game.cohesion.typicalPair }}.{% endif %} <a href="/insights/">Has cohesion predicted results?</a></p>
+      {% endif %}
+
       {% if game.analyticsRows %}
       <h3>Last 10 analytics</h3>
       <table>

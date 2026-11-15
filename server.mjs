@@ -26,6 +26,7 @@ import {
 import { teamAnalytics } from "./lib/teamstats.mjs";
 import { teamStarters } from "./lib/starters.mjs";
 import { reconcileStartersAndInjuries } from "./lib/lineup.mjs";
+import { syncHistory } from "./lib/history.mjs";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const OUT = path.resolve("_site");
@@ -33,6 +34,7 @@ const OUT = path.resolve("_site");
 // runs while nobody is looking, so an idle server makes no ESPN requests.
 const STALE_AFTER_MS = Number(process.env.EDGEBOARD_STALE_MS) || 5 * 60 * 1000;
 const PRUNE_EVERY_MS = 24 * 60 * 60 * 1000;
+const HISTORY_SYNC_EVERY_MS = 60 * 60 * 1000;
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -76,9 +78,27 @@ async function prune() {
   }
 }
 
+let lastHistorySyncAt = 0;
+
+/**
+ * Keep lineup history current, in the background: the first run fills in
+ * last season (under a minute); later runs fetch only new games. Pages
+ * rebuild when new games land, so cohesion appears without a restart.
+ */
+function syncHistoryInBackground() {
+  lastHistorySyncAt = Date.now();
+  syncHistory({ log: (m) => console.log(m) })
+    .then(async ({ fetched, failed }) => {
+      if (failed > 0) console.log(`Lineup history: ${failed} games will retry on the next sync.`);
+      if (fetched > 0) await rebuild();
+    })
+    .catch((e) => console.error("Lineup history sync failed:", e));
+}
+
 /** Called before serving a page: rebuild if stale, prune at most daily. */
 async function ensureFresh() {
   if (Date.now() - lastPrunedAt > PRUNE_EVERY_MS) prune(); // Background.
+  if (Date.now() - lastHistorySyncAt > HISTORY_SYNC_EVERY_MS) syncHistoryInBackground();
   if (Date.now() - lastBuiltAt <= STALE_AFTER_MS) return;
   try {
     await rebuild();
@@ -396,6 +416,7 @@ const server = http.createServer(async (req, res) => {
 await prune();
 console.log("Building site…");
 await rebuild();
+syncHistoryInBackground();
 
 server.listen(PORT, () => {
   console.log(`EdgeBoard running at http://localhost:${PORT}`);
