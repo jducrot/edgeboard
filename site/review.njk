@@ -34,9 +34,13 @@ navCurrent: review
       {% if p.graded %}
       <section aria-label="Retrospective: {{ p.gameLabel }}" class="retro-done">
         <h3>Retrospective</h3>
-        {% if p.autoRetro %}
-        <p>{{ p.autoRetro }}</p>
-        <p class="muted">Computed from your pick, the market line, and the box score.</p>
+        {% if p.autoRetroItems %}
+        <ul class="fact-list">
+          {%- for item in p.autoRetroItems %}
+          <li>{{ item }}</li>
+          {%- endfor %}
+        </ul>
+        <p class="muted">Computed from your pick, the market line, the box score, and the live win-probability path.</p>
         {% else %}
         <p>Being generated; refresh in a moment.</p>
         {% endif %}

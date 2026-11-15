@@ -69,13 +69,13 @@ async function generateAutoRetro(p) {
   const winMargin = Math.abs(p.final_home_score - p.final_away_score);
   const youRight = p.pick_correct === 1;
 
-  const sentences = [];
+  const items = [];
   let marginNote = "";
   if (youRight && p.predicted_margin !== null) {
-    marginNote = `, final margin ${winMargin} against your ${p.predicted_margin}`;
+    marginNote = ` (final margin ${winMargin} against your ${p.predicted_margin})`;
   }
-  sentences.push(
-    `You picked ${p.pick_team} at confidence ${p.confidence}/5: ${youRight ? "correct" : "wrong"}${marginNote}.`,
+  items.push(
+    `Your pick: ${p.pick_team} at ${p.confidence}/5 confidence — ${youRight ? "correct" : "wrong"}${marginNote}`,
   );
 
   // Compare your read with the market's.
@@ -86,34 +86,41 @@ async function generateAutoRetro(p) {
     // side won. The favorite won when it matches the winner.
     const favoriteWon = youRight ? fav === p.pick_team : fav !== p.pick_team;
     if (youRight && !favoriteWon) {
-      sentences.push(`The market had ${fav} -${m[2]} and missed; your read beat the line.`);
+      items.push(`Market: had ${fav} -${m[2]} and missed — your read beat the line`);
     } else if (youRight && favoriteWon) {
-      sentences.push(`The market agreed (${fav} -${m[2]}); no edge proven either way.`);
+      items.push(`Market: agreed with you (${fav} -${m[2]}) — no edge proven either way`);
     } else if (!youRight && favoriteWon) {
-      sentences.push(`The market had ${fav} -${m[2]} and was right; your read went against it and lost.`);
+      items.push(`Market: had ${fav} -${m[2]} and was right — your read went against it and lost`);
     } else {
-      sentences.push(`The market (${fav} -${m[2]}) missed this one too; nobody saw it.`);
+      items.push(`Market: ${fav} -${m[2]} missed this one too — nobody saw it`);
     }
   }
 
   try {
     const recap = await getGameRecap(p.game_id);
-    if (recap?.analysis) sentences.push(recap.analysis);
-    if (recap?.factors?.length) {
-      sentences.push(`Deciding factors: ${recap.factors.join("; ")}.`);
-    }
-    if (recap?.surprise?.length) {
-      sentences.push(`Predictability: ${recap.surprise.join(" ")}`);
-    }
+    if (recap?.analysis) items.push(recap.analysis);
+    for (const f of recap?.factors ?? []) items.push(`Factor: ${f}`);
+    for (const s of recap?.surprise ?? []) items.push(s);
   } catch {
     // Recap is enrichment.
   }
-  return sentences.join(" ");
+  return items;
 }
 
-// Bump when the generated text gets smarter, so existing retrospectives
-// regenerate once with the new analysis.
-const RETRO_GEN = 2;
+// Bump when the generated content gets smarter or changes shape, so
+// existing retrospectives regenerate once.
+const RETRO_GEN = 3;
+
+/** Stored retrospectives are JSON arrays; older rows may hold plain text. */
+function parseRetroItems(stored) {
+  if (!stored) return null;
+  try {
+    const v = JSON.parse(stored);
+    return Array.isArray(v) && v.length > 0 ? v : null;
+  } catch {
+    return [stored];
+  }
+}
 
 export default async function () {
   await reconcilePending();
@@ -122,9 +129,9 @@ export default async function () {
   for (const p of rows) {
     if (p.reconciled_at_utc !== null && (!p.auto_retro || (p.retro_gen ?? 0) < RETRO_GEN)) {
       try {
-        const text = await generateAutoRetro(p);
-        saveAutoRetro(p.id, text, RETRO_GEN);
-        p.auto_retro = text;
+        const items = await generateAutoRetro(p);
+        p.auto_retro = JSON.stringify(items);
+        saveAutoRetro(p.id, p.auto_retro, RETRO_GEN);
       } catch {
         // Try again next build.
       }
@@ -148,7 +155,7 @@ export default async function () {
         ? "Awaiting result"
         : `${p.pick_correct ? "Correct" : "Incorrect"} — final ${p.final_away_score}–${p.final_home_score}`,
       snapshot: snapshotSummary(p.snapshot_json),
-      autoRetro: p.auto_retro ?? null,
+      autoRetroItems: parseRetroItems(p.auto_retro),
       retroNotes: p.retro_notes ?? "",
       canAddNotes: graded && !p.retro_notes,
     };
