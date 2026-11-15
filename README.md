@@ -37,7 +37,10 @@ are working.
   (over/under lean), and devigged win probabilities, as a bulleted list; records, a per-team matchup projection (opponent
   defense vs league average), last-10 form and streaks; rest days and
   back-to-backs; a **Last 10 analytics** table aggregated from each
-  team's last ten box scores (possession-adjusted net/offensive/defensive
+  team's last ten box scores, opened by a **League rank** table placing
+  each team 1st to 30th over its last 10 games in offense (points per 100),
+  defense (points allowed per 100), rebounding (share of all boards), and
+  3-point percentage, across every team in the league (possession-adjusted net/offensive/defensive
   ratings, pace, eFG% for and against, turnover battle, offensive
   rebound %, FT rate, and the three-point profile with opponent 3P% as a
   regression flag); and per-team disclosure widgets for the starting

@@ -72,6 +72,52 @@ function analyticsRows(away, home) {
   ];
 }
 
+function ordinal(n) {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  return `${n}${{ 1: "st", 2: "nd", 3: "rd" }[n % 10] ?? "th"}`;
+}
+
+/**
+ * Rank every team on last-10 offense, defense, rebounding, and
+ * three-point shooting. Returns Map teamId -> { off, def, reb, three, of }.
+ */
+async function leagueRankings(teamIds) {
+  const rows = (
+    await Promise.all(
+      teamIds.map(async (id) => ({ id, a: await teamAnalytics(id).catch(() => null) })),
+    )
+  ).filter((r) => r.a);
+  const ranks = new Map(rows.map((r) => [r.id, { of: rows.length }]));
+  const rankBy = (key, value, higherIsBetter) => {
+    const sorted = [...rows]
+      .filter((r) => r.a[value] !== null && Number.isFinite(r.a[value]))
+      .sort((x, y) => (higherIsBetter ? y.a[value] - x.a[value] : x.a[value] - y.a[value]));
+    sorted.forEach((r, i) => (ranks.get(r.id)[key] = i + 1));
+  };
+  rankBy("off", "ortg", true);
+  rankBy("def", "drtg", false); // Fewer points allowed per 100 is better.
+  rankBy("reb", "trbPct", true);
+  rankBy("three", "tpPct", true);
+  return ranks;
+}
+
+function rankRows(ranks, awayId, homeId) {
+  const a = ranks.get(awayId);
+  const h = ranks.get(homeId);
+  if (!a || !h) return null;
+  const cell = (r, key) => (r[key] ? ordinal(r[key]) : "–");
+  return {
+    of: a.of,
+    rows: [
+      { label: "Offense (points per 100)", away: cell(a, "off"), home: cell(h, "off") },
+      { label: "Defense (points allowed per 100)", away: cell(a, "def"), home: cell(h, "def") },
+      { label: "Rebounding (share of all boards)", away: cell(a, "reb"), home: cell(h, "reb") },
+      { label: "3-point shooting %", away: cell(a, "three"), home: cell(h, "three") },
+    ],
+  };
+}
+
 function fmtEt(isoUtc) {
   return `${new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
@@ -350,6 +396,10 @@ export default async function () {
   ]);
   const predictionsByGame = new Map(listPredictions().map((p) => [p.game_id, p]));
 
+  // Last-10 league ranks for every team in the standings, not just the
+  // teams playing, so "5th of 30" means what it says.
+  const leagueRanks = await leagueRankings([...form.keys()]);
+
   const paValues = [...form.values()]
     .map((f) => f.avgPointsAgainst)
     .filter((v) => v !== null && Number.isFinite(v));
@@ -468,6 +518,9 @@ export default async function () {
           : null,
         lineCheck: check ? check.items : null,
         analyticsRows: g.statusState === "pre" ? analyticsRows(awayStats, homeStats) : null,
+        rankRows: g.statusState === "pre"
+          ? rankRows(leagueRanks, g.away.id, g.home.id)
+          : null,
         id: g.id,
         heading: `${g.away.displayName} at ${g.home.displayName}`,
         statusLine:
@@ -570,6 +623,22 @@ function normalizeStarterIndices(slates) {
       100 + 15 * (0.45 * z(r, "pts36") + 0.3 * z(r, "ts") + 0.25 * z(r, "astNet36"));
     const def =
       100 + 15 * (0.4 * z(r, "stl36") + 0.4 * z(r, "blk36") + 0.2 * z(r, "reb36"));
+    r.off = off;
+    r.def = def;
     r.indexLine = `O:${Math.round(off)}, DA:${Math.round(def)}`;
+  }
+
+  // The five as a unit: the average keeps the same scale as each player,
+  // so 100 still means an average starter.
+  for (const s of slates) {
+    for (const game of s.games) {
+      for (const side of ["away", "home"]) {
+        const rated = (game[`${side}Starters`] ?? []).filter((r) => Number.isFinite(r.off));
+        if (rated.length < 3) continue;
+        const mean = (k) => Math.round(rated.reduce((t, r) => t + r[k], 0) / rated.length);
+        const note = rated.length < 5 ? ` (${rated.length} of 5 rated)` : "";
+        game[`${side}StartersGroup`] = `Starters O:${mean("off")}, Starters DA:${mean("def")}${note}`;
+      }
+    }
   }
 }

@@ -134,6 +134,30 @@ eleventyComputed:
         </tbody>
       </table>
 
+      {% if game.rankRows %}
+      <h3>League rank, last 10 games (of {{ game.rankRows.of }})</h3>
+      <table>
+        <caption class="visually-hidden">League rank over the last 10 games for {{ game.away.displayName }} and {{ game.home.displayName }}, where 1st is best</caption>
+        <thead>
+          <tr>
+            <th scope="col">Team strength</th>
+            <th scope="col">{{ game.away.abbreviation }} (away)</th>
+            <th scope="col">{{ game.home.abbreviation }} (home)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {%- for row in game.rankRows.rows %}
+          <tr>
+            <th scope="row">{{ row.label }}</th>
+            <td>{{ row.away }}</td>
+            <td>{{ row.home }}</td>
+          </tr>
+          {%- endfor %}
+        </tbody>
+      </table>
+      <p class="muted">1st is best. Whole team, not just the starters.</p>
+      {% endif %}
+
       {% if game.analyticsRows %}
       <h3>Last 10 analytics</h3>
       <table>
@@ -161,11 +185,12 @@ eleventyComputed:
       {% if not game.isFinal %}
       <div class="injury-cols">
         {%- for side in [
-          { nickname: game.away.shortDisplayName, starters: game.awayStarters, unaccounted: game.awayUnaccounted },
-          { nickname: game.home.shortDisplayName, starters: game.homeStarters, unaccounted: game.homeUnaccounted }
+          { nickname: game.away.shortDisplayName, starters: game.awayStarters, group: game.awayStartersGroup, unaccounted: game.awayUnaccounted },
+          { nickname: game.home.shortDisplayName, starters: game.homeStarters, group: game.homeStartersGroup, unaccounted: game.homeUnaccounted }
         ] %}
         <section>
           <h3>{{ side.nickname }} starters</h3>
+          {% if side.group %}<p><strong>{{ side.group }}</strong></p>{% endif %}
           {% if side.starters %}
           <ul>
             {%- for s in side.starters %}
