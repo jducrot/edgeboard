@@ -1,5 +1,5 @@
-// EdgeBoard server: serves the Eleventy output, handles the three form
-// POSTs (predict, retro, refresh), and rebuilds the site when data changes.
+// EdgeBoard server: serves the Eleventy output, handles the form POSTs
+// (predict, predict/update, retro, refresh), and rebuilds the site when data changes.
 // Built-in Node modules only.
 
 import http from "node:http";
@@ -21,8 +21,11 @@ import {
   insertPrediction,
   listPredictionsForGame,
   saveRetro,
+  updatePrediction,
 } from "./lib/db.mjs";
 import { teamAnalytics } from "./lib/teamstats.mjs";
+import { teamStarters } from "./lib/starters.mjs";
+import { reconcileStartersAndInjuries } from "./lib/lineup.mjs";
 
 const PORT = Number(process.env.PORT ?? 3000);
 const OUT = path.resolve("_site");
@@ -165,89 +168,156 @@ function parseForm(body) {
 
 /* ------------------------------- handlers ------------------------------- */
 
-async function handlePredict(form, res) {
+/** Validate the pick fields shared by the save and update forms. */
+function parsePickForm(form) {
   const gameId = form.get("gameId").trim();
   const slateDate = form.get("slateDate").trim();
   const pick = form.get("pick");
   const marginRaw = form.get("predictedMargin").trim();
   const confidence = Number(form.get("confidence"));
   const reasoning = form.get("reasoning").trim();
-  const backHref = `/slate/${encodeURIComponent(slateDate)}/`;
-
-  const fail = (msg) =>
-    sendError(res, 400, "Prediction not saved", msg, backHref, "Back to the slate");
 
   if (!/^\d+$/.test(gameId) || !/^\d{8}$/.test(slateDate)) {
-    return fail("Missing or invalid game reference.");
+    return { error: "Missing or invalid game reference." };
   }
+  const values = { gameId, slateDate, pick, confidence, reasoning, predictedMargin: null };
   if (pick !== "home" && pick !== "away") {
-    return fail("Choose which team you expect to win.");
+    return { values, error: "Choose which team you expect to win." };
   }
   if (!Number.isInteger(confidence) || confidence < 1 || confidence > 5) {
-    return fail("Confidence must be between 1 and 5.");
+    return { values, error: "Confidence must be between 1 and 5." };
   }
   if (reasoning.length < 10) {
-    return fail(
-      "Write at least a sentence of reasoning. Future you needs it for the retrospective.",
-    );
+    return {
+      values,
+      error: "Write at least a sentence of reasoning. Future you needs it for the retrospective.",
+    };
   }
-  let predictedMargin = null;
   if (marginRaw !== "") {
     const m = Number(marginRaw);
     if (!Number.isInteger(m) || m < 1 || m > 60) {
-      return fail("Predicted margin must be a whole number between 1 and 60.");
+      return { values, error: "Predicted margin must be a whole number between 1 and 60." };
     }
-    predictedMargin = m;
+    values.predictedMargin = m;
   }
-  if (listPredictionsForGame(gameId).length > 0) {
-    return fail("You already logged a prediction for this game.");
-  }
+  return { values };
+}
 
+/** The game as it stands right now, or an error if it cannot be picked. */
+async function pickableGame(gameId, slateDate) {
   const games = await getScoreboard(slateDate);
   const game = games.find((g) => g.id === gameId);
-  if (!game) return fail("Could not find that game on the slate.");
+  if (!game) return { error: "Could not find that game on the slate." };
   if (game.statusState !== "pre") {
-    return fail("This game has already started. Predictions lock at tipoff.");
+    return { error: "This game has already started. Picks lock at tip-off." };
   }
+  return { game };
+}
 
-  const [odds, form_, injuries, rest, homeStats10, awayStats10] = await Promise.all([
-    getOdds(gameId),
-    getTeamFormByTeamId(),
-    getInjuriesByTeamId(),
-    getRestByTeamId(slateDate),
-    teamAnalytics(game.home.id).catch(() => null),
-    teamAnalytics(game.away.id).catch(() => null),
-  ]);
-
-  const snapshot = {
+/**
+ * Freeze everything the card showed at the moment of the decision,
+ * including both projected lineups, for retrospectives and for the
+ * "changed since your pick" comparison.
+ */
+async function buildSnapshot(game, slateDate) {
+  const [odds, form_, injuries, rest, homeStats10, awayStats10, homeTs, awayTs] =
+    await Promise.all([
+      getOdds(game.id),
+      getTeamFormByTeamId(),
+      getInjuriesByTeamId(),
+      getRestByTeamId(slateDate),
+      teamAnalytics(game.home.id).catch(() => null),
+      teamAnalytics(game.away.id).catch(() => null),
+      teamStarters(game.home.id).catch(() => null),
+      teamStarters(game.away.id).catch(() => null),
+    ]);
+  const homeInjuries = injuries.get(game.home.id) ?? [];
+  const awayInjuries = injuries.get(game.away.id) ?? [];
+  const lineupNames = (ts, inj) =>
+    reconcileStartersAndInjuries(ts, { all: inj }).starters?.map((s) => s.name) ?? null;
+  return {
     game,
     odds,
     homeForm: form_.get(game.home.id) ?? null,
     awayForm: form_.get(game.away.id) ?? null,
-    homeInjuries: injuries.get(game.home.id) ?? [],
-    awayInjuries: injuries.get(game.away.id) ?? [],
+    homeInjuries,
+    awayInjuries,
     homeRest: rest.get(game.home.id) ?? null,
     awayRest: rest.get(game.away.id) ?? null,
     homeStats10,
     awayStats10,
+    homeLineup: lineupNames(homeTs, homeInjuries),
+    awayLineup: lineupNames(awayTs, awayInjuries),
     capturedAtUtc: new Date().toISOString(),
   };
+}
 
+/** Back to the game's card on its slate, so the page flow is not lost. */
+function cardHref(slateDate, gameId, anchor = "pick") {
+  return `/slate/${encodeURIComponent(slateDate)}/#${anchor}-${encodeURIComponent(gameId)}`;
+}
+
+async function handlePredict(form, res) {
+  const { values, error } = parsePickForm(form);
+  const back = values ? cardHref(values.slateDate, values.gameId, "game") : "/";
+  const fail = (msg) =>
+    sendError(res, 400, "Prediction not saved", msg, back, "Back to the game");
+  if (error) return fail(error);
+  const { gameId, slateDate, pick } = values;
+
+  if (listPredictionsForGame(gameId).length > 0) {
+    return fail("You already have a pick for this game. Open View game details on its card to update it.");
+  }
+  const { game, error: gameError } = await pickableGame(gameId, slateDate);
+  if (gameError) return fail(gameError);
+
+  const snapshot = await buildSnapshot(game, slateDate);
   insertPrediction({
     gameId,
     gameDateEt: toEtDateString(game.dateUtc),
     gameLabel: game.shortName,
     pick,
     pickTeam: pick === "home" ? game.home.abbreviation : game.away.abbreviation,
-    predictedMargin,
-    confidence,
-    reasoning,
-    lineAtPrediction: odds?.details ?? null,
+    predictedMargin: values.predictedMargin,
+    confidence: values.confidence,
+    reasoning: values.reasoning,
+    lineAtPrediction: snapshot.odds?.details ?? null,
     snapshotJson: JSON.stringify(snapshot),
   });
 
   await rebuild();
-  redirect(res, "/review/");
+  redirect(res, cardHref(slateDate, gameId));
+}
+
+async function handleUpdate(form, res) {
+  const id = Number(form.get("predictionId"));
+  const { values, error } = parsePickForm(form);
+  const back = values ? cardHref(values.slateDate, values.gameId) : "/";
+  const fail = (msg) =>
+    sendError(res, 400, "Pick not updated", msg, back, "Back to the game");
+  if (error) return fail(error);
+  const { gameId, slateDate, pick } = values;
+
+  const existing = Number.isInteger(id) && id > 0 ? getPrediction(id) : null;
+  if (!existing || existing.game_id !== gameId) {
+    return fail("Could not find that pick.");
+  }
+  const { game, error: gameError } = await pickableGame(gameId, slateDate);
+  if (gameError) return fail(gameError);
+
+  const snapshot = await buildSnapshot(game, slateDate);
+  updatePrediction(id, {
+    pick,
+    pickTeam: pick === "home" ? game.home.abbreviation : game.away.abbreviation,
+    predictedMargin: values.predictedMargin,
+    confidence: values.confidence,
+    reasoning: values.reasoning,
+    lineAtPrediction: snapshot.odds?.details ?? null,
+    snapshotJson: JSON.stringify(snapshot),
+  });
+
+  await rebuild();
+  redirect(res, cardHref(slateDate, gameId));
 }
 
 async function handleRetro(form, res) {
@@ -302,6 +372,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST") {
       const form = parseForm(await readBody(req));
       if (url.pathname === "/predict") return await handlePredict(form, res);
+      if (url.pathname === "/predict/update") return await handleUpdate(form, res);
       if (url.pathname === "/retro") return await handleRetro(form, res);
       if (url.pathname === "/refresh") {
         await rebuild();

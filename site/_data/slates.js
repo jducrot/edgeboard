@@ -14,6 +14,8 @@ import { listPredictions } from "../../lib/db.mjs";
 import { playerImpact } from "../../lib/impact.mjs";
 import { getGameRecap } from "../../lib/recap.mjs";
 import { teamStarters } from "../../lib/starters.mjs";
+import { reconcileStartersAndInjuries } from "../../lib/lineup.mjs";
+import { compareToSnapshot } from "../../lib/changes.mjs";
 import { lineCheck } from "../../lib/linecheck.mjs";
 import { teamAnalytics } from "../../lib/teamstats.mjs";
 
@@ -70,74 +72,65 @@ function analyticsRows(away, home) {
   ];
 }
 
-/**
- * A player appears in exactly one list. Starters listed Out move to the
- * injury list only (the last game's lineup is stale for them); starters
- * on the report as day-to-day stay starters with the injury noted inline
- * and leave the injury list.
- */
-function reconcileStartersAndInjuries(ts, injView) {
-  if (!ts?.starters?.length) return { starters: null, injView, unaccounted: [], unlisted: [] };
-  const isOut = (i) => (i.status ?? "").toLowerCase() === "out";
-  const matches = (i, s) =>
-    (i.athleteId && i.athleteId === s.id) || i.athlete === s.name;
-  const note = (inj) =>
-    `on the injury report: ${inj.status}${inj.injuryType ? ` (${inj.injuryType.toLowerCase()})` : ""}`;
+function fmtEt(isoUtc) {
+  return `${new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(isoUtc))} ET`;
+}
 
-  // A missed game with no injury listing: rest, personal reasons, or news
-  // the report has not caught. Either way, availability is unconfirmed.
-  const absenceNote = (p) => {
-    if (!p.missedRecent) return null;
-    return p.missedRecent === 1
-      ? `sat the last game (${p.missedSince}) with no injury listed; status for this game unconfirmed`
-      : `has missed the last ${p.missedRecent} games (since ${p.missedSince}) with no injury listed; status unconfirmed`;
-  };
-  const annotate = (p, extra = {}) => {
-    const inj = injView.all.find((i) => matches(i, p));
-    if (inj) return { ...p, ...extra, gtdNote: note(inj) };
-    return { ...p, ...extra, absenceNote: absenceNote(p) };
-  };
-
-  const kept = [];
-  for (const s of ts.starters) {
-    const inj = injView.all.find((i) => matches(i, s));
-    if (inj && isOut(inj)) continue; // Out: injury list only.
-    kept.push(annotate(s));
-  }
-
-  // A lineup always has five: backfill removed starters with the next
-  // players in the five-game ranking, marked as projected.
-  for (const b of ts.bench ?? []) {
-    if (kept.length >= 5) break;
-    if (kept.some((k) => k.id === b.id)) continue;
-    const inj = injView.all.find((i) => matches(i, b));
-    if (inj && isOut(inj)) continue;
-    kept.push(annotate(b, { projected: true }));
-  }
-
-  const remainingInjuries = injView.all.filter((i) => {
-    const inLineup = kept.some((s) => matches(i, s));
-    return !inLineup || isOut(i); // Shown-in-lineup GTD players leave the injury list.
-  });
-
-  // Rotation players outside the lineup who also vanished without a listing.
-  const unaccounted = (ts.absentees ?? [])
-    .filter((a) => !kept.some((k) => k.id === a.id))
-    .filter((a) => !injView.all.some((i) => matches(i, a)))
-    .map((a) => ({ name: a.name, note: absenceNote(a) }));
-
-  // Everyone whose availability is unconfirmed, for the Line check.
-  const unlisted = [
-    ...kept.filter((k) => k.absenceNote).map((k) => k.name),
-    ...unaccounted.map((u) => u.name),
-  ];
-
+/** "Your pick: <team> by <margin> because <reasoning>", as entered. */
+function pickView(row, g) {
+  const team = row.pick === "home" ? g.home.displayName : g.away.displayName;
+  const reasoning = String(row.reasoning ?? "").trim();
+  const ending = /[.!?]$/.test(reasoning) ? "" : ".";
   return {
-    starters: kept.length > 0 ? kept : null,
-    injView: { ...injView, all: remainingInjuries, count: remainingInjuries.length },
-    unaccounted,
-    unlisted,
+    id: row.id,
+    text: `${team}${row.predicted_margin !== null ? ` by ${row.predicted_margin}` : ""} because ${reasoning}${ending}`,
+    savedNote: row.updated_at_utc
+      ? `Updated ${fmtEt(row.updated_at_utc)}`
+      : `Saved ${fmtEt(row.created_at_utc)}`,
+    pick: row.pick,
+    margin: row.predicted_margin,
+    confidence: row.confidence,
+    reasoning,
   };
+}
+
+/** Mark, in words, each item on the card that changed since the pick. */
+function markChanges(cmp, oddsView, sides) {
+  for (const item of oddsView?.items ?? []) {
+    if (cmp.marginWas && item.text.startsWith("Expected margin")) {
+      item.changed = true;
+      item.text += ` (changed since your pick, was ${cmp.marginWas})`;
+    }
+    if (cmp.winProbWas && item.text.startsWith("Win probability")) {
+      item.changed = true;
+      item.text += ` (changed since your pick, was ${cmp.winProbWas})`;
+    }
+  }
+  for (const side of ["away", "home"]) {
+    let changedCount = 0;
+    for (const i of sides[side].inj?.all ?? []) {
+      const note = cmp.injuryNotes.get(`${side}:${i.athleteId || i.athlete}`);
+      if (note) {
+        i.changedNote = note;
+        changedCount++;
+      }
+    }
+    if (sides[side].inj) sides[side].inj.changedCount = changedCount;
+    for (const s of sides[side].starters ?? []) {
+      if (cmp.newStarters.has(`${side}:${s.name}`)) {
+        s.changedNote = "New in the projected lineup since your pick";
+      }
+      const note = cmp.injuryNotes.get(`${side}:${s.id}`) ?? cmp.injuryNotes.get(`${side}:${s.name}`);
+      if (note) s.changedNote = note;
+    }
+  }
 }
 
 function restLabel(rest) {
@@ -355,7 +348,7 @@ export default async function () {
     getTeamFormByTeamId(),
     getInjuriesByTeamId(),
   ]);
-  const predictedGameIds = new Set(listPredictions().map((p) => p.game_id));
+  const predictionsByGame = new Map(listPredictions().map((p) => [p.game_id, p]));
 
   const paValues = [...form.values()]
     .map((f) => f.avgPointsAgainst)
@@ -422,9 +415,48 @@ export default async function () {
           });
         }
       }
+      // Bookmaker bullets as objects, so a changed one can be marked.
+      const oddsView = oddsLine(odds, g, isFinal, awayStats, homeStats);
+      if (oddsView) oddsView.items = oddsView.items.map((text) => ({ text, changed: false }));
+
+      // Your pick, and what changed since you made it (pregame only).
+      const myRow = predictionsByGame.get(g.id) ?? null;
+      let changes = null;
+      if (myRow && g.statusState === "pre") {
+        let snap = null;
+        try {
+          snap = JSON.parse(myRow.snapshot_json);
+        } catch {
+          snap = null;
+        }
+        const cmp = compareToSnapshot(
+          snap,
+          {
+            odds,
+            homeForm: form.get(g.home.id) ?? null,
+            awayForm: form.get(g.away.id) ?? null,
+            // The full report, as the snapshot recorded it.
+            homeInjuries: injuries.get(g.home.id) ?? [],
+            awayInjuries: injuries.get(g.away.id) ?? [],
+            homeLineup: homeStartersList?.map((s) => s.name) ?? null,
+            awayLineup: awayStartersList?.map((s) => s.name) ?? null,
+          },
+          g,
+        );
+        changes = cmp.items;
+        markChanges(cmp, oddsView, {
+          away: { inj: awayInjFinal, starters: awayStartersList },
+          home: { inj: homeInjFinal, starters: homeStartersList },
+        });
+      }
+
       return {
         recap,
         isFinal,
+        myPick: myRow ? pickView(myRow, g) : null,
+        changes,
+        collapseDetails: Boolean(myRow) && !isFinal,
+        canEdit: Boolean(myRow) && g.statusState === "pre",
         knowable: isFinal
           ? knowableSignals(
               g,
@@ -444,7 +476,7 @@ export default async function () {
             : g.statusDetail,
         away: g.away,
         home: g.home,
-        odds: oddsLine(odds, g, isFinal, awayStats, homeStats),
+        odds: oddsView,
         awayForm: form.get(g.away.id) ?? null,
         homeForm: form.get(g.home.id) ?? null,
         awayMatchup: matchupCell(form.get(g.away.id), form.get(g.home.id), leagueAvgPA),
@@ -463,8 +495,7 @@ export default async function () {
         homeStarters: homeStartersList,
         awayUnaccounted,
         homeUnaccounted,
-        hasPrediction: predictedGameIds.has(g.id),
-        canPredict: g.statusState === "pre" && !predictedGameIds.has(g.id),
+        canPredict: g.statusState === "pre" && !myRow,
       };
   };
 

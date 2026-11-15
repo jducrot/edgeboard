@@ -27,7 +27,7 @@ eleventyComputed:
 <ul class="card-grid" role="list">
   {%- for game in slate.games %}
   <li>
-    <article aria-labelledby="game-{{ game.id }}-heading" class="card">
+    <article id="game-{{ game.id }}" aria-labelledby="game-{{ game.id }}-heading" class="card">
       <h2 id="game-{{ game.id }}-heading">{{ game.heading }}</h2>
       <p class="muted">{{ game.statusLine }}</p>
 
@@ -35,7 +35,7 @@ eleventyComputed:
       <p class="fact-lead"><strong>{{ game.odds.provider }}:</strong></p>
       <ul class="fact-list">
         {%- for item in game.odds.items %}
-        <li>{{ item }}</li>
+        <li{% if item.changed %} class="changed"{% endif %}>{{ item.text }}</li>
         {%- endfor %}
       </ul>
       {% elif not game.isFinal %}
@@ -52,6 +52,30 @@ eleventyComputed:
         </ul>
         <p class="muted">Computed from recent efficiency, home court, rest, and fresh key absences, nothing else. The market knows more than this model.</p>
       </section>
+      {% endif %}
+
+      {% if game.myPick %}
+      {# Saving a pick returns here (#pick-<id>); tabindex lets the browser move focus to it. #}
+      <div class="my-pick" id="pick-{{ game.id }}" tabindex="-1">
+        <p><strong>Your pick:</strong> {{ game.myPick.text }}</p>
+        <p class="muted">{{ game.myPick.savedNote }}.{% if game.canEdit %} You can update it in the game details until tip-off.{% endif %}</p>
+      </div>
+      {% endif %}
+
+      {% if game.collapseDetails %}
+      {# Opened here, closed after the update form below. #}
+      <details class="game-details">
+        <summary>View game details{% if game.changes and game.changes.length %} ({{ game.changes.length }} {% if game.changes.length == 1 %}change{% else %}changes{% endif %} since your pick){% endif %}</summary>
+        {% if game.changes and game.changes.length %}
+        <div class="changes">
+          <h3>Changed since your pick</h3>
+          <ul class="fact-list">
+            {%- for c in game.changes %}
+            <li>{{ c }}</li>
+            {%- endfor %}
+          </ul>
+        </div>
+        {% endif %}
       {% endif %}
 
       {% if game.recap %}
@@ -147,6 +171,7 @@ eleventyComputed:
             {%- for s in side.starters %}
             <li>
               <strong>{{ s.name }}</strong>{% if s.pos %} ({{ s.pos }}){% endif %}{% if s.projected %} — projected to start in place of an injured starter{% elif s.newToLineup %} — recently entered the starting lineup, often injury cover{% endif %}{% if s.gtdNote %} — {{ s.gtdNote }}{% endif %}{% if s.absenceNote %} — <strong>{{ s.absenceNote }}</strong>{% endif %}
+              {% if s.changedNote %}<br><span class="changed">{{ s.changedNote }}</span>{% endif %}
               {% if s.trend %}<br>{{ s.trend }}{% endif %}
               {% if s.indexLine %}<br>{{ s.indexLine }}{% endif %}
             </li>
@@ -172,11 +197,12 @@ eleventyComputed:
           <p>No {{ side.nickname }} injuries listed.</p>
           {% else %}
           <details>
-            <summary>{{ side.inj.count }} {{ side.nickname }} {% if side.inj.count == 1 %}injury{% else %}injuries{% endif %}</summary>
+            <summary>{{ side.inj.count }} {{ side.nickname }} {% if side.inj.count == 1 %}injury{% else %}injuries{% endif %}{% if side.inj.changedCount %} ({{ side.inj.changedCount }} changed since your pick){% endif %}</summary>
             <ul>
               {%- for i in side.inj.all %}
               <li>
                 <strong>{{ i.athlete }}</strong>{% if i.position %} ({{ i.position }}){% endif %} — {{ i.status }}{% if i.returnNote %} {{ i.returnNote }}{% endif %}
+                {% if i.changedNote %}<br><span class="changed">{{ i.changedNote }}</span>{% endif %}
                 {% if i.value %}<br>{{ i.value }}{% endif %}
                 {% if i.context %}<br>{{ i.context }}{% endif %}
                 {% if i.comment %}<br>{{ i.comment }}{% endif %}
@@ -190,7 +216,48 @@ eleventyComputed:
       </div>
       {% endif %}
 
-      {% if game.canPredict %}
+      {% if game.collapseDetails %}
+        {% if game.canEdit %}
+        <form method="post" action="/predict/update" class="predict-form">
+          <input type="hidden" name="predictionId" value="{{ game.myPick.id }}">
+          <input type="hidden" name="gameId" value="{{ game.id }}">
+          <input type="hidden" name="slateDate" value="{{ slate.ymd }}">
+          <h3>Update your pick</h3>
+          <fieldset>
+            <legend>Who wins?</legend>
+            <label>
+              <input type="radio" name="pick" value="away" required{% if game.myPick.pick == "away" %} checked{% endif %}>
+              {{ game.away.displayName }} (away)
+            </label>
+            <label>
+              <input type="radio" name="pick" value="home" required{% if game.myPick.pick == "home" %} checked{% endif %}>
+              {{ game.home.displayName }} (home)
+            </label>
+          </fieldset>
+          <div class="field-row">
+            <div class="field">
+              <label for="margin-edit-{{ game.id }}">Predicted margin (points, optional)</label>
+              <input id="margin-edit-{{ game.id }}" name="predictedMargin" type="number" inputmode="numeric" min="1" max="60" {% if game.myPick.margin %}value="{{ game.myPick.margin }}"{% endif %}>
+            </div>
+            <div class="field">
+              <label for="confidence-edit-{{ game.id }}">Confidence (1 = coin flip, 5 = lock)</label>
+              <select id="confidence-edit-{{ game.id }}" name="confidence" required>
+                {%- for n in [1, 2, 3, 4, 5] %}
+                <option value="{{ n }}"{% if game.myPick.confidence == n %} selected{% endif %}>{{ n }}</option>
+                {%- endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="reasoning-edit-{{ game.id }}">Reasoning (required, this is what the retrospective checks)</label>
+            <textarea id="reasoning-edit-{{ game.id }}" name="reasoning" rows="3" required minlength="10">{{ game.myPick.reasoning }}</textarea>
+          </div>
+          <button type="submit">Update my pick</button>
+          <p class="muted">Updating refreshes the snapshot of the game data, so changes are measured from your latest decision.</p>
+        </form>
+        {% endif %}
+      </details>
+      {% elif game.canPredict %}
       <form method="post" action="/predict" class="predict-form">
         <input type="hidden" name="gameId" value="{{ game.id }}">
         <input type="hidden" name="slateDate" value="{{ slate.ymd }}">
@@ -227,10 +294,8 @@ eleventyComputed:
           <textarea id="reasoning-{{ game.id }}" name="reasoning" rows="3" required minlength="10"></textarea>
         </div>
         <button type="submit">Save prediction and snapshot inputs</button>
-        <p class="muted">Saving takes you to the Review page, where your prediction will appear at the top.</p>
+        <p class="muted">Saving keeps you on this page. Your pick appears on this card, and you can update it until tip-off.</p>
       </form>
-      {% elif game.hasPrediction %}
-      <p class="logged-note">Prediction logged for this game. See it on the <a href="/review/">Review page</a>.</p>
       {% endif %}
     </article>
   </li>

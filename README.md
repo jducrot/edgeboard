@@ -67,7 +67,16 @@ are working.
   per standard deviation. Defense is labelled "activity" deliberately:
   box scores cannot see positioning or rim protection, and true
   defensive ratings need stats.nba.com, which blocks cloud servers.
-  Games that have not tipped off carry a prediction form. Finished games swap the injury report for a "How it happened"
+  Games that have not tipped off carry a prediction form. Saving a pick
+  keeps you on the slate and returns you to that game's card, which then
+  shows "Your pick: <team> by <margin> because <reasoning>" below the Line
+  check and collapses the rest of the card behind a "View game details"
+  button. Until tip-off, the details hold an update form (updating
+  refreshes the frozen snapshot) and a "Changed since your pick" list
+  comparing the snapshot with current data: line and win-probability
+  moves, injury status changes, projected lineup changes, and games played
+  in between. Changed items are also marked in place, in words, and the
+  button label carries the count. Finished games swap the injury report for a "How it happened"
   section: a computed verdict against the pregame line (held up,
   overpriced favorite, or upset), the quarter where the game turned, the
   two or three box-score factors that decided it, top performers, and who
