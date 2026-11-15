@@ -141,7 +141,13 @@ not used yet.
 
 ## Running it
 
-Requires Node 22 or newer.
+Requires Node 22 or newer. `npm run dev` checks this first and explains
+how to fix it, because older versions can crash with "segmentation fault"
+(the database driver does not support them), and `npm install` refuses to
+run on them (`.npmrc` sets `engine-strict`). With nvm, `nvm use` picks the
+right version from `.nvmrc`. After changing Node versions, delete
+`node_modules` and run `npm install` again so the database driver is
+rebuilt for the new version.
 
 ```bash
 npm install
