@@ -591,3 +591,13 @@ li.changed {
   font-weight: 600;
   padding-bottom: 0.25rem;
 }
+
+/* Shown by the server at the top of every page while data cannot refresh. */
+.status-notice {
+  background: var(--changed-bg);
+  border-left: 4px solid var(--changed-border);
+  border-radius: 0 6px 6px 0;
+  padding: 0.5rem 0.75rem;
+  margin: 0 0 1rem;
+  max-width: 75ch;
+}

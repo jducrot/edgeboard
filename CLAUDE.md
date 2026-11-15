@@ -27,6 +27,16 @@ These rules come from the project owner and apply to every session.
   scrolling at 320px (Success Criterion 1.4.10).
 - Convey every signal in text, never by color alone.
 
+## Security
+
+- The server listens on 127.0.0.1 and ::1 by default. Never change the
+  default to listen on all interfaces.
+- Keep the Host check, the same-origin check on every POST, and the
+  security headers in `server.mjs`. New form endpoints get the same
+  checks automatically; do not add routes that bypass `handleRequest`.
+- The pages run no JavaScript, and the Content-Security-Policy forbids
+  it. Do not add scripts or inline styles without discussing it first.
+
 ## Data
 
 - `data/` holds the owner's predictions and is gitignored. Never commit it.

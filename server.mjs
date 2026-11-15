@@ -29,12 +29,30 @@ import { reconcileStartersAndInjuries } from "./lib/lineup.mjs";
 import { syncHistory } from "./lib/history.mjs";
 
 const PORT = Number(process.env.PORT ?? 3000);
+// Only this computer can reach the app. Set HOST (and EDGEBOARD_ALLOWED_HOSTS)
+// only if you deliberately want other devices on your network to reach it.
+const HOST = process.env.HOST || "127.0.0.1";
+const ALLOWED_HOSTS = new Set([
+  `localhost:${PORT}`,
+  `127.0.0.1:${PORT}`,
+  `[::1]:${PORT}`,
+  ...(process.env.EDGEBOARD_ALLOWED_HOSTS ?? "")
+    .split(",")
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean),
+]);
 const OUT = path.resolve("_site");
+const STATUS_FILE = path.resolve(".cache", "edgeboard-status.json");
 // Pages rebuild on request once the last build is older than this. Nothing
 // runs while nobody is looking, so an idle server makes no ESPN requests.
 const STALE_AFTER_MS = Number(process.env.EDGEBOARD_STALE_MS) || 5 * 60 * 1000;
 const PRUNE_EVERY_MS = 24 * 60 * 60 * 1000;
 const HISTORY_SYNC_EVERY_MS = 60 * 60 * 1000;
+// While ESPN is unreachable, try again at most this often.
+const OFFLINE_RETRY_MS = 60 * 1000;
+// How long a page request waits for a refresh in progress before showing
+// the pages already built.
+const WAIT_FOR_BUILD_MS = 3000;
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -48,22 +66,105 @@ const MIME = {
 /* ------------------------------- building ------------------------------- */
 
 let building = null;
+let queued = null;
 let lastBuiltAt = 0;
 let lastPrunedAt = 0;
 
-async function rebuild() {
-  // Coalesce concurrent requests into one build.
-  if (building) return building;
-  building = (async () => {
-    const started = Date.now();
+// Connection status, kept across restarts so the footer can say when data
+// was last really downloaded, even if the app starts offline.
+const status = {
+  offline: false, // The last attempt could not reach ESPN.
+  lastAttemptAt: 0,
+  lastOnlineAt: null, // ISO time of the last successful contact with ESPN.
+  buildFailed: false, // The last build threw; older pages are being shown.
+};
+try {
+  status.lastOnlineAt = JSON.parse(await fs.readFile(STATUS_FILE, "utf8")).lastOnlineAt ?? null;
+} catch {
+  // First run, or the cache was cleared.
+}
+
+async function saveStatus() {
+  try {
+    await fs.mkdir(path.dirname(STATUS_FILE), { recursive: true });
+    await fs.writeFile(STATUS_FILE, JSON.stringify({ lastOnlineAt: status.lastOnlineAt }));
+  } catch {
+    // Not critical.
+  }
+}
+
+/** A quick check that ESPN answers, so pages can say honestly when it does not. */
+async function espnReachable() {
+  try {
+    const res = await fetch(
+      `https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates=${slateDateEt(0)}`,
+      { signal: AbortSignal.timeout(5000) },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function doBuild() {
+  status.lastAttemptAt = Date.now();
+  const online = await espnReachable();
+  status.offline = !online;
+  if (online) {
+    status.lastOnlineAt = new Date().toISOString();
+    saveStatus();
+  }
+  // Read by site/_data/meta.js for the footer.
+  globalThis.edgeboardStatus = { offline: status.offline, lastOnlineAt: status.lastOnlineAt };
+
+  // Offline, the build still runs: expired cached data is used where it
+  // exists, and the page notice says so.
+  const started = Date.now();
+  try {
     const elev = new Eleventy("site", "_site", { quietMode: true });
     await elev.write();
-    lastBuiltAt = Date.now();
-    console.log(`Rebuilt in ${((lastBuiltAt - started) / 1000).toFixed(1)}s`);
-  })().finally(() => {
+  } catch (e) {
+    status.buildFailed = true;
+    throw e;
+  }
+  status.buildFailed = false;
+  lastBuiltAt = Date.now();
+  console.log(
+    `Rebuilt in ${((lastBuiltAt - started) / 1000).toFixed(1)}s${status.offline ? " (offline: using saved data)" : ""}`,
+  );
+  // Clean the cache only after a build with live data, never before one:
+  // offline, those old files are what keeps the app working.
+  if (online && Date.now() - lastPrunedAt > PRUNE_EVERY_MS) prune();
+}
+
+function logRefreshFailure(e) {
+  console.error("Refresh failed; showing the last pages built:", e?.message ?? e);
+}
+
+/** Join the build in progress, or start one. */
+function rebuild() {
+  if (building) return building;
+  building = doBuild().finally(() => {
     building = null;
   });
   return building;
+}
+
+/**
+ * A build that starts after this call, for saves: joining a build already
+ * in progress could miss the change just written.
+ */
+function rebuildAfterChange() {
+  if (!building) return rebuild();
+  if (!queued) {
+    queued = building
+      .catch(() => {})
+      .then(() => {
+        queued = null;
+        return rebuild();
+      });
+  }
+  return queued;
 }
 
 async function prune() {
@@ -90,23 +191,96 @@ function syncHistoryInBackground() {
   syncHistory({ log: (m) => console.log(m) })
     .then(async ({ fetched, failed }) => {
       if (failed > 0) console.log(`Lineup history: ${failed} games will retry on the next sync.`);
-      if (fetched > 0) await rebuild();
+      if (fetched > 0) await rebuildAfterChange();
     })
-    .catch((e) => console.error("Lineup history sync failed:", e));
+    .catch((e) => console.error("Lineup history sync failed:", e.message ?? e));
 }
 
-/** Called before serving a page: rebuild if stale, prune at most daily. */
+const pagesExist = () =>
+  fs.access(path.join(OUT, "review", "index.html")).then(() => true, () => false);
+
+/** Before serving a page: refresh if stale, without leaving the tab blank. */
 async function ensureFresh() {
-  if (Date.now() - lastPrunedAt > PRUNE_EVERY_MS) prune(); // Background.
-  if (Date.now() - lastHistorySyncAt > HISTORY_SYNC_EVERY_MS) syncHistoryInBackground();
-  if (Date.now() - lastBuiltAt <= STALE_AFTER_MS) return;
-  try {
-    await rebuild();
-  } catch (e) {
-    // ESPN down or similar: serve the last good build rather than an error.
-    console.error("Rebuild failed; serving the previous build:", e);
+  if (!status.offline && Date.now() - lastHistorySyncAt > HISTORY_SYNC_EVERY_MS) {
+    syncHistoryInBackground();
+  }
+  const stale = Date.now() - lastBuiltAt > STALE_AFTER_MS;
+  const retryTooSoon =
+    (status.offline || status.buildFailed) && Date.now() - status.lastAttemptAt < OFFLINE_RETRY_MS;
+  if (!building && (!stale || retryTooSoon)) return;
+
+  const build = (building ?? rebuild()).catch((e) => {
+    console.error("Refresh failed; showing the last pages built:", e.message ?? e);
+  });
+  if (await pagesExist()) {
+    await Promise.race([build, new Promise((r) => setTimeout(r, WAIT_FOR_BUILD_MS))]);
+  } else {
+    await build;
   }
 }
+
+function fmtEtTime(iso) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
+/** A plain-text notice at the top of every page while data cannot refresh. */
+function statusNotice() {
+  if (!status.offline && !status.buildFailed) return null;
+  const tried = fmtEtTime(new Date(status.lastAttemptAt).toISOString());
+  const reason = status.offline ? "ESPN could not be reached" : "The latest refresh failed";
+  const asOf = status.lastOnlineAt
+    ? `You are seeing data last downloaded ${fmtEtTime(status.lastOnlineAt)} ET.`
+    : "You are seeing the most recent data saved on this computer.";
+  return `${reason} (last tried ${tried} ET). ${asOf} It will try again when you load a page, at most once a minute.`;
+}
+
+/**
+ * Only answer requests addressed to this app's own address. Blocks a
+ * hostile website from reading the app through a hostname trick (DNS
+ * rebinding).
+ */
+function hostAllowed(req) {
+  return ALLOWED_HOSTS.has(String(req.headers.host ?? "").toLowerCase());
+}
+
+/**
+ * Only accept form submissions made from the app's own pages. Blocks other
+ * websites from submitting hidden forms to the app (cross-site request
+ * forgery). Browsers mark same-site requests; older ones send Origin or
+ * Referer instead. A request that proves nothing is refused.
+ */
+function fromOwnPages(req) {
+  const site = req.headers["sec-fetch-site"];
+  if (site) return site === "same-origin";
+  for (const header of [req.headers.origin, req.headers.referer]) {
+    if (!header) continue;
+    try {
+      const u = new URL(header);
+      return u.protocol === "http:" && ALLOWED_HOSTS.has(u.host.toLowerCase());
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+// Browser safety rules. The app runs no JavaScript at all, so scripts are
+// refused outright, and no other site may show the app inside a frame.
+const SECURITY_HEADERS = {
+  "content-security-policy":
+    "default-src 'none'; style-src 'self'; img-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+  "x-frame-options": "DENY",
+  "x-content-type-options": "nosniff",
+  "referrer-policy": "same-origin",
+  "cross-origin-resource-policy": "same-origin",
+};
 
 /** Same-site path from the Referer header, or the home page. */
 function backPath(req) {
@@ -139,7 +313,7 @@ function messagePage(title, body, backHref, backLabel) {
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-<main class="shell" style="padding-block:1.5rem">
+<main class="shell">
 <h1>${esc(title)}</h1>
 <p>${esc(body)}</p>
 <p><a href="${esc(backHref)}">${esc(backLabel)}</a></p>
@@ -305,7 +479,8 @@ async function handlePredict(form, res) {
     snapshotJson: JSON.stringify(snapshot),
   });
 
-  await rebuild();
+  // Saved either way; if the refresh fails, the page notice explains.
+  await rebuildAfterChange().catch(logRefreshFailure);
   redirect(res, cardHref(slateDate, gameId));
 }
 
@@ -336,7 +511,8 @@ async function handleUpdate(form, res) {
     snapshotJson: JSON.stringify(snapshot),
   });
 
-  await rebuild();
+  // Saved either way; if the refresh fails, the page notice explains.
+  await rebuildAfterChange().catch(logRefreshFailure);
   redirect(res, cardHref(slateDate, gameId));
 }
 
@@ -353,7 +529,8 @@ async function handleRetro(form, res) {
     return fail("Write a note before saving.");
   }
   saveRetro(id, notes);
-  await rebuild();
+  // Saved either way; if the refresh fails, the page notice explains.
+  await rebuildAfterChange().catch(logRefreshFailure);
   redirect(res, "/review/");
 }
 
@@ -366,20 +543,52 @@ async function serveStatic(reqPath, res) {
   if (!file.startsWith(OUT + path.sep) && file !== OUT) {
     return sendError(res, 404, "Not found", "That page does not exist.");
   }
+  let data;
   try {
-    const data = await fs.readFile(file);
-    const type = MIME[path.extname(file)] ?? "application/octet-stream";
-    res.writeHead(200, { "content-type": type });
-    res.end(data);
+    data = await fs.readFile(file);
   } catch {
-    sendError(res, 404, "Not found", "That page does not exist.");
+    if (rel.endsWith("index.html") && !(await pagesExist())) {
+      return sendError(
+        res,
+        503,
+        "No data yet",
+        "EdgeBoard has not been able to download any data yet. Check your internet connection. It will try again when you reload this page, at most once a minute.",
+        "/",
+        "Try again",
+      );
+    }
+    return sendError(res, 404, "Not found", "That page does not exist.");
   }
+  const type = MIME[path.extname(file)] ?? "application/octet-stream";
+  const notice = type.startsWith("text/html") ? statusNotice() : null;
+  if (notice) {
+    data = Buffer.from(
+      data
+        .toString("utf8")
+        .replace(
+          '<main id="main" class="shell">',
+          `<main id="main" class="shell">\n<p class="status-notice"><strong>Data not current:</strong> ${esc(notice)}</p>`,
+        ),
+    );
+  }
+  res.writeHead(200, { "content-type": type });
+  res.end(data);
 }
 
 /* --------------------------------- server -------------------------------- */
 
-const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://localhost:${PORT}`);
+async function handleRequest(req, res) {
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
+  if (!hostAllowed(req)) {
+    return sendError(res, 403, "Not allowed", "EdgeBoard only answers requests addressed to localhost.");
+  }
+  let url;
+  try {
+    url = new URL(req.url, `http://localhost:${PORT}`);
+    decodeURIComponent(url.pathname);
+  } catch {
+    return sendError(res, 400, "Bad request", "That address is not valid.");
+  }
   try {
     if (req.method === "GET" || req.method === "HEAD") {
       if (url.pathname === "/") {
@@ -390,12 +599,22 @@ const server = http.createServer(async (req, res) => {
       return await serveStatic(url.pathname, res);
     }
     if (req.method === "POST") {
+      if (!fromOwnPages(req)) {
+        return sendError(
+          res,
+          403,
+          "Not allowed",
+          "This form was not sent from EdgeBoard's own pages, so it was ignored. If you did submit it, reload the page and try again.",
+        );
+      }
       const form = parseForm(await readBody(req));
       if (url.pathname === "/predict") return await handlePredict(form, res);
       if (url.pathname === "/predict/update") return await handleUpdate(form, res);
       if (url.pathname === "/retro") return await handleRetro(form, res);
       if (url.pathname === "/refresh") {
-        await rebuild();
+        await rebuildAfterChange().catch((e) =>
+          console.error("Refresh failed; showing the last pages built:", e.message ?? e),
+        );
         return redirect(res, backPath(req));
       }
       return sendError(res, 404, "Not found", "That action does not exist.");
@@ -411,18 +630,46 @@ const server = http.createServer(async (req, res) => {
       "The server hit an unexpected error. Check the terminal output, then try again.",
     );
   }
-});
+}
 
-await prune();
-console.log("Building site…");
-await rebuild();
-syncHistoryInBackground();
+/* -------------------------------- startup -------------------------------- */
 
-server.listen(PORT, () => {
+// Start serving right away when pages from an earlier run exist, and
+// refresh in the background. Only a first-ever run waits for a build, and
+// even then a failed build (offline) does not stop the server.
+// Lineup history syncs after the first refresh, once we know ESPN answers.
+const syncIfOnline = () => {
+  if (!status.offline) syncHistoryInBackground();
+};
+if (await pagesExist()) {
+  console.log("Serving the last pages built; refreshing in the background…");
+  rebuild().then(syncIfOnline, logRefreshFailure);
+} else {
+  console.log("Building site for the first time…");
+  await rebuild().then(syncIfOnline, (e) =>
+    console.error("First build failed; will retry when a page is loaded:", e.message ?? e),
+  );
+}
+
+const listeners = [http.createServer(handleRequest)];
+listeners[0].listen(PORT, HOST, () => {
   console.log(`EdgeBoard running at http://localhost:${PORT}`);
+  if (HOST === "127.0.0.1") {
+    console.log("Only this computer can reach it.");
+  } else {
+    console.log(`Listening on ${HOST}: other devices on your network may reach it.`);
+  }
   const window =
     STALE_AFTER_MS >= 60_000
       ? `${Math.round(STALE_AFTER_MS / 60_000)} minutes`
       : `${Math.round(STALE_AFTER_MS / 1000)} seconds`;
   console.log(`Pages refresh on visit when older than ${window}, or use the Refresh button.`);
 });
+// "localhost" can resolve to the IPv6 address ::1 first on some systems,
+// so listen there too when staying local. Harmless if IPv6 is unavailable.
+if (HOST === "127.0.0.1") {
+  const v6 = http.createServer(handleRequest);
+  v6.on("error", () => {});
+  v6.listen(PORT, "::1");
+  listeners.push(v6);
+}

@@ -165,6 +165,38 @@ fetch must be told to honor the proxy:
 NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt npm run dev
 ```
 
+## Security and offline behavior
+
+EdgeBoard is built for one person on one computer, and defends that:
+
+- **Only this computer can reach it.** The server listens on 127.0.0.1
+  (and ::1 where IPv6 exists), not on your network, so devices on the
+  same Wi-Fi cannot see or change your picks, and Mac and Windows do not
+  ask to allow incoming connections. To deliberately open it to your
+  network, set `HOST=0.0.0.0` and list the addresses you will use in
+  `EDGEBOARD_ALLOWED_HOSTS` (for example `192.168.1.20:3000`).
+- **Only its own pages can change data.** Form submissions are accepted
+  only when the browser marks them as coming from EdgeBoard itself
+  (`Sec-Fetch-Site`, or a matching `Origin` or `Referer`), so another
+  website cannot submit hidden forms to it.
+- **Only requests addressed to it are answered.** Any other `Host` is
+  refused, which blocks websites from reading it through a hostname trick
+  (DNS rebinding).
+- **Browsers are told to run no scripts at all**, never to show it inside
+  another site's frame, and not to guess file types. The app uses no
+  JavaScript, so this costs nothing and turns any future escaping mistake
+  into a non-event.
+
+**Offline:** if pages from an earlier run exist, the server starts
+serving them immediately and refreshes in the background. When ESPN cannot
+be reached, pages are rebuilt from data saved on this computer and every
+page shows a notice saying when data was last really downloaded; it
+retries at most once a minute. The cache is cleaned only after a
+successful download, so time offline never deletes the data that keeps
+the app working. A brand-new copy started offline shows a "No data yet"
+page instead of crashing. Every network request has a deadline, so a
+hanging connection cannot stall the app.
+
 ## Accessibility
 
 WCAG 2.2 AA is the baseline. The current build passes axe-core (WCAG
