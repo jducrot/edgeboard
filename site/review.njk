@@ -31,29 +31,28 @@ navCurrent: review
       </details>
       {% endif %}
 
-      {% if p.hasRetro %}
-      <section aria-label="Retrospective" class="retro-done">
+      {% if p.graded %}
+      <section aria-label="Retrospective: {{ p.gameLabel }}" class="retro-done">
         <h3>Retrospective</h3>
-        <p>{{ p.retroTags | join(", ") }}{% if p.retroNotes %} — {{ p.retroNotes }}{% endif %}</p>
+        {% if p.autoRetro %}
+        <p>{{ p.autoRetro }}</p>
+        <p class="muted">Computed from your pick, the market line, and the box score.</p>
+        {% else %}
+        <p>Being generated; refresh in a moment.</p>
+        {% endif %}
+        {% if p.retroNotes %}
+        <p><strong>Your notes:</strong> {{ p.retroNotes }}</p>
+        {% else %}
+        <form method="post" action="/retro" class="retro-form">
+          <input type="hidden" name="predictionId" value="{{ p.id }}">
+          <div class="field">
+            <label for="notes-{{ p.id }}">Your notes (what would you track or weigh differently next time?)</label>
+            <textarea id="notes-{{ p.id }}" name="notes" rows="3"></textarea>
+          </div>
+          <button type="submit">Save notes</button>
+        </form>
+        {% endif %}
       </section>
-      {% elif p.needsRetro %}
-      <form method="post" action="/retro" class="retro-form">
-        <input type="hidden" name="predictionId" value="{{ p.id }}">
-        <fieldset>
-          <legend>Retrospective: why did this land the way it did?</legend>
-          {%- for tag in journal.retroTagOptions %}
-          <label>
-            <input type="checkbox" name="tags" value="{{ tag }}">
-            {{ tag }}
-          </label>
-          {%- endfor %}
-        </fieldset>
-        <div class="field">
-          <label for="notes-{{ p.id }}">Notes (what would you track or weigh differently next time?)</label>
-          <textarea id="notes-{{ p.id }}" name="notes" rows="3"></textarea>
-        </div>
-        <button type="submit">Save retrospective</button>
-      </form>
       {% endif %}
     </article>
   </li>

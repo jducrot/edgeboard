@@ -32,14 +32,16 @@ are working.
   (aligned, mild or strong disagreement), and a list of
   game-time-decision key players as unpriced uncertainty. Each card also
   shows the market's expected margin (the spread, phrased plainly), the
-  total, devigged win probabilities derived from the moneylines, and
-  movement from open; records, a per-team matchup projection (opponent
+  total, devigged win probabilities derived from the moneylines, shown as a
+  bulleted list; records, a per-team matchup projection (opponent
   defense vs league average), last-10 form and streaks; rest days and
   back-to-backs; a **Last 10 analytics** table aggregated from each
   team's last ten box scores (possession-adjusted net/offensive/defensive
   ratings, pace, eFG% for and against, turnover battle, offensive
   rebound %, FT rate, and the three-point profile with opponent 3P% as a
-  regression flag); and both teams' injury reports. Each listed player gets
+  regression flag); and per-team disclosure widgets for the starting
+  five and the injury list (labelled like "4 Pacers injuries"), collapsed
+  by default. Each listed player gets
   an impact line (their recent production when playing) and an absence
   context line: a fresh absence whose production goes missing tonight, or
   one already reflected in the team's recent record, with the team's W-L
@@ -62,9 +64,10 @@ are working.
   was listed out for that game. It is rule-based text from the box score,
   labelled as such.
 - **Review** (`/review/`): every prediction with its outcome. Finished games
-  are graded automatically at build time. Graded predictions get a
-  retrospective form with cause tags (in-game injury, untracked signal,
-  variance, and so on). Each prediction keeps a frozen snapshot of its
+  are graded automatically at build time. Graded predictions get an automatically
+  computed retrospective (your pick vs the market's pick vs the result,
+  plus the box-score factors that decided the game) and a free-text
+  notes box for your own takeaways. Each prediction keeps a frozen snapshot of its
   inputs, viewable inline.
 
 ## Data sources

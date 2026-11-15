@@ -16,7 +16,6 @@ import {
   toEtDateString,
 } from "./lib/espn.mjs";
 import {
-  RETRO_TAGS,
   getPrediction,
   insertPrediction,
   listPredictionsForGame,
@@ -210,17 +209,16 @@ async function handlePredict(form, res) {
 async function handleRetro(form, res) {
   const id = Number(form.get("predictionId"));
   const notes = form.get("notes").trim();
-  const tags = form.getAll("tags").filter((t) => RETRO_TAGS.includes(t));
   const fail = (msg) =>
-    sendError(res, 400, "Retrospective not saved", msg, "/review/", "Back to the review page");
+    sendError(res, 400, "Notes not saved", msg, "/review/", "Back to the review page");
 
   if (!Number.isInteger(id) || id < 1 || !getPrediction(id)) {
     return fail("Missing or unknown prediction reference.");
   }
-  if (tags.length === 0 && notes.length === 0) {
-    return fail("Pick at least one cause tag or write a note.");
+  if (notes.length === 0) {
+    return fail("Write a note before saving.");
   }
-  saveRetro(id, tags, notes);
+  saveRetro(id, notes);
   await rebuild();
   redirect(res, "/review/");
 }

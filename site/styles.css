@@ -255,10 +255,17 @@ a {
   font-size: 0.875rem;
 }
 
-.movement {
-  color: var(--movement);
-  font-weight: 500;
-  font-size: 0.875rem;
+.fact-lead {
+  margin-bottom: 0;
+}
+
+.fact-list {
+  margin: 0.25rem 0 0.5rem;
+  padding-left: 1.25rem;
+}
+
+.fact-list li {
+  margin-block: 0.125rem;
 }
 
 .linecheck {

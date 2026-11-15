@@ -32,10 +32,12 @@ eleventyComputed:
       <p class="muted">{{ game.statusLine }}</p>
 
       {% if game.odds %}
-      <p><strong>{{ game.odds.provider }}:</strong> {{ game.odds.text }}</p>
-      {%- for note in game.odds.movement %}
-      <p class="movement">Line movement: {{ note }}.</p>
-      {%- endfor %}
+      <p class="fact-lead"><strong>{{ game.odds.provider }}:</strong></p>
+      <ul class="fact-list">
+        {%- for item in game.odds.items %}
+        <li>{{ item }}</li>
+        {%- endfor %}
+      </ul>
       {% elif not game.isFinal %}
       <p class="muted">No betting line posted yet.</p>
       {% endif %}
@@ -43,8 +45,12 @@ eleventyComputed:
       {% if game.lineCheck %}
       <section aria-label="Line check: {{ game.heading }}" class="linecheck">
         <h3>Line check</h3>
-        <p>{{ game.lineCheck }}</p>
-        <p class="muted">Computed from season scoring margins, home court, rest, and fresh key absences, nothing else. The market knows more than this model.</p>
+        <ul class="fact-list">
+          {%- for item in game.lineCheck %}
+          <li>{{ item }}</li>
+          {%- endfor %}
+        </ul>
+        <p class="muted">Computed from recent efficiency, home court, rest, and fresh key absences, nothing else. The market knows more than this model.</p>
       </section>
       {% endif %}
 
@@ -128,47 +134,41 @@ eleventyComputed:
       {% if not game.isFinal %}
       <div class="injury-cols">
         {%- for side in [
-          { teamName: game.away.displayName, starters: game.awayStarters },
-          { teamName: game.home.displayName, starters: game.homeStarters }
+          { nickname: game.away.shortDisplayName, starters: game.awayStarters },
+          { nickname: game.home.shortDisplayName, starters: game.homeStarters }
         ] %}
-        <section>
-          <h3>{{ side.teamName }} starters</h3>
+        <div>
           {% if side.starters %}
-          <ul>
-            {%- for s in side.starters %}
-            <li>
-              <strong>{{ s.name }}</strong>{% if s.pos %} ({{ s.pos }}){% endif %}{% if s.newToLineup %} — recently entered the starting lineup, often injury cover{% endif %}
-              {% if s.trend %}<br>{{ s.trend }}{% endif %}
-              {% if s.indexLine %}<br>{{ s.indexLine }}{% endif %}
-            </li>
-            {%- endfor %}
-          </ul>
-          <p class="muted">100 is league average</p>
-          {% else %}
-          <p>Not enough completed games to read a lineup yet.</p>
-          {% endif %}
-        </section>
-        {%- endfor %}
-        {%- for side in [game.awayInjuries, game.homeInjuries] %}
-        <section>
-          <h3>{{ side.teamName }} injuries</h3>
-          {% if side.count == 0 %}
-          <p>No players listed.</p>
-          {% else %}
-          <ul>
-            {%- for i in side.visible %}
-            <li>
-              <strong>{{ i.athlete }}</strong>{% if i.position %} ({{ i.position }}){% endif %} — {{ i.status }}{% if i.returnNote %} {{ i.returnNote }}{% endif %}
-              {% if i.value %}<br>{{ i.value }}{% endif %}
-              {% if i.context %}<br>{{ i.context }}{% endif %}
-            </li>
-            {%- endfor %}
-          </ul>
-          {% if side.more.length > 0 %}
           <details>
-            <summary>{{ side.more.length }} more player{% if side.more.length > 1 %}s{% endif %}</summary>
+            <summary>{{ side.nickname }} starters</summary>
             <ul>
-              {%- for i in side.more %}
+              {%- for s in side.starters %}
+              <li>
+                <strong>{{ s.name }}</strong>{% if s.pos %} ({{ s.pos }}){% endif %}{% if s.newToLineup %} — recently entered the starting lineup, often injury cover{% endif %}
+                {% if s.trend %}<br>{{ s.trend }}{% endif %}
+                {% if s.indexLine %}<br>{{ s.indexLine }}{% endif %}
+              </li>
+              {%- endfor %}
+            </ul>
+            <p class="muted">100 is league average</p>
+          </details>
+          {% else %}
+          <p>Not enough completed games to read a {{ side.nickname }} lineup yet.</p>
+          {% endif %}
+        </div>
+        {%- endfor %}
+        {%- for side in [
+          { nickname: game.away.shortDisplayName, inj: game.awayInjuries },
+          { nickname: game.home.shortDisplayName, inj: game.homeInjuries }
+        ] %}
+        <div>
+          {% if side.inj.count == 0 %}
+          <p>No {{ side.nickname }} injuries listed.</p>
+          {% else %}
+          <details>
+            <summary>{{ side.inj.count }} {{ side.nickname }} {% if side.inj.count == 1 %}injury{% else %}injuries{% endif %}</summary>
+            <ul>
+              {%- for i in side.inj.all %}
               <li>
                 <strong>{{ i.athlete }}</strong>{% if i.position %} ({{ i.position }}){% endif %} — {{ i.status }}{% if i.returnNote %} {{ i.returnNote }}{% endif %}
                 {% if i.value %}<br>{{ i.value }}{% endif %}
@@ -179,8 +179,7 @@ eleventyComputed:
             </ul>
           </details>
           {% endif %}
-          {% endif %}
-        </section>
+        </div>
         {%- endfor %}
       </div>
       {% endif %}

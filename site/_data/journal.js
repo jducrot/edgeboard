@@ -2,11 +2,12 @@
 // every prediction with display fields precomputed for the template.
 
 import { getScoreboard } from "../../lib/espn.mjs";
+import { getGameRecap } from "../../lib/recap.mjs";
 import {
-  RETRO_TAGS,
   listPredictions,
   listUnreconciled,
   reconcilePrediction,
+  saveAutoRetro,
 } from "../../lib/db.mjs";
 
 async function reconcilePending() {
@@ -60,18 +61,71 @@ function snapshotSummary(json) {
   };
 }
 
+/**
+ * The computed retrospective: your pick against the market's pick and the
+ * result, plus how the game was actually decided.
+ */
+async function generateAutoRetro(p) {
+  const winMargin = Math.abs(p.final_home_score - p.final_away_score);
+  const youRight = p.pick_correct === 1;
+
+  const sentences = [];
+  let marginNote = "";
+  if (youRight && p.predicted_margin !== null) {
+    marginNote = `, final margin ${winMargin} against your ${p.predicted_margin}`;
+  }
+  sentences.push(
+    `You picked ${p.pick_team} at confidence ${p.confidence}/5: ${youRight ? "correct" : "wrong"}${marginNote}.`,
+  );
+
+  // Compare your read with the market's.
+  const m = /^([A-Z]{2,4})\s*-([\d.]+)$/.exec(p.line_at_prediction ?? "");
+  if (m) {
+    const fav = m[1];
+    // If your pick was right, the winner is your team; otherwise the other
+    // side won. The favorite won when it matches the winner.
+    const favoriteWon = youRight ? fav === p.pick_team : fav !== p.pick_team;
+    if (youRight && !favoriteWon) {
+      sentences.push(`The market had ${fav} -${m[2]} and missed; your read beat the line.`);
+    } else if (youRight && favoriteWon) {
+      sentences.push(`The market agreed (${fav} -${m[2]}); no edge proven either way.`);
+    } else if (!youRight && favoriteWon) {
+      sentences.push(`The market had ${fav} -${m[2]} and was right; your read went against it and lost.`);
+    } else {
+      sentences.push(`The market (${fav} -${m[2]}) missed this one too; nobody saw it.`);
+    }
+  }
+
+  try {
+    const recap = await getGameRecap(p.game_id);
+    if (recap?.analysis) sentences.push(recap.analysis);
+    if (recap?.factors?.length) {
+      sentences.push(`Deciding factors: ${recap.factors.join("; ")}.`);
+    }
+  } catch {
+    // Recap is enrichment.
+  }
+  return sentences.join(" ");
+}
+
 export default async function () {
   await reconcilePending();
   const rows = listPredictions();
 
+  for (const p of rows) {
+    if (p.reconciled_at_utc !== null && !p.auto_retro) {
+      try {
+        const text = await generateAutoRetro(p);
+        saveAutoRetro(p.id, text);
+        p.auto_retro = text;
+      } catch {
+        // Try again next build.
+      }
+    }
+  }
+
   const predictions = rows.map((p) => {
     const graded = p.reconciled_at_utc !== null;
-    let retroTags = [];
-    try {
-      retroTags = p.retro_tags ? JSON.parse(p.retro_tags) : [];
-    } catch {
-      retroTags = [];
-    }
     return {
       id: p.id,
       gameLabel: p.game_label,
@@ -87,10 +141,9 @@ export default async function () {
         ? "Awaiting result"
         : `${p.pick_correct ? "Correct" : "Incorrect"} — final ${p.final_away_score}–${p.final_home_score}`,
       snapshot: snapshotSummary(p.snapshot_json),
-      hasRetro: p.retro_at_utc !== null,
-      retroTags,
+      autoRetro: p.auto_retro ?? null,
       retroNotes: p.retro_notes ?? "",
-      needsRetro: graded && p.retro_at_utc === null,
+      canAddNotes: graded && !p.retro_notes,
     };
   });
 
@@ -99,7 +152,6 @@ export default async function () {
 
   return {
     predictions,
-    retroTagOptions: RETRO_TAGS,
     summary:
       predictions.length === 0
         ? "No predictions logged yet. Pick a game on the slate to start."

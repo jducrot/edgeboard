@@ -77,28 +77,6 @@ function restLabel(rest) {
   return `${rest.daysOfRest} days rest`;
 }
 
-function movementNotes(odds) {
-  const notes = [];
-  if (
-    odds.openTotal !== null &&
-    odds.currentTotal !== null &&
-    odds.openTotal !== odds.currentTotal
-  ) {
-    const dir = odds.currentTotal < odds.openTotal ? "down" : "up";
-    notes.push(`Total moved ${dir} from ${odds.openTotal} to ${odds.currentTotal}`);
-  }
-  if (
-    odds.openAwaySpread !== null &&
-    odds.currentAwaySpread !== null &&
-    odds.openAwaySpread !== odds.currentAwaySpread
-  ) {
-    notes.push(
-      `Away spread moved from ${odds.openAwaySpread} to ${odds.currentAwaySpread}`,
-    );
-  }
-  return notes;
-}
-
 /** American moneyline -> implied probability (0..1), before devigging. */
 function impliedProb(ml) {
   if (ml === null || !Number.isFinite(ml)) return null;
@@ -122,10 +100,10 @@ function finalOddsLine(odds, game) {
     if (winner.abbreviation === fav) {
       const res =
         margin > num ? "covered" : margin === num ? "a push against the spread" : "won but did not cover";
-      sentences.push(`${fav} closed as ${num}-point favorites and won by ${margin}: ${res}.`);
+      sentences.push(`${fav} closed as ${num}-point favorites and won by ${margin}: ${res}`);
     } else {
       sentences.push(
-        `${fav} closed as ${num}-point favorites and lost by ${margin}: an upset, and ${winner.abbreviation} covered.`,
+        `${fav} closed as ${num}-point favorites and lost by ${margin}: an upset, and ${winner.abbreviation} covered`,
       );
     }
   }
@@ -135,47 +113,36 @@ function finalOddsLine(odds, game) {
     const diff = Math.round((combined - odds.overUnder) * 10) / 10;
     const res =
       diff > 0 ? `over by ${diff}` : diff < 0 ? `under by ${-diff}` : "a push";
-    let s = `Total ${odds.overUnder}: they scored ${combined}, ${res}.`;
-    if (
-      odds.openTotal !== null &&
-      odds.currentTotal !== null &&
-      odds.openTotal !== odds.currentTotal
-    ) {
-      const dir = odds.currentTotal < odds.openTotal ? "dropped" : "rose";
-      const confirmed =
-        (dir === "dropped" && diff < 0) || (dir === "rose" && diff > 0);
-      s += ` The total had ${dir} from ${odds.openTotal} before tipoff${confirmed ? ", and the move was right" : ", but the game went the other way"}.`;
-    }
-    sentences.push(s);
+    sentences.push(`Total ${odds.overUnder}: they scored ${combined}, ${res}`);
   }
 
   if (sentences.length === 0) return null;
-  return { provider: odds.provider, text: sentences.join(" "), movement: [] };
+  return { provider: odds.provider, items: sentences };
 }
 
 function oddsLine(odds, game, isFinal = false) {
   if (!odds) return null;
   if (isFinal) return finalOddsLine(odds, game);
+  const items = [];
   // The spread IS the market's expected margin; phrase it that way.
-  let s;
   const m = /^([A-Z]{2,4})\s*-([\d.]+)$/.exec(odds.details ?? "");
   if (m) {
-    s = `Expected margin: ${m[1]} by ${m[2]}`;
+    items.push(`Expected margin: ${m[1]} by ${m[2]}`);
   } else if (odds.details) {
-    s = odds.details; // e.g. "EVEN"
+    items.push(odds.details); // e.g. "EVEN"
   } else {
-    s = "No spread posted";
+    items.push("No spread posted");
   }
-  if (odds.overUnder !== null) s += `, total ${odds.overUnder}`;
+  if (odds.overUnder !== null) items.push(`Total: ${odds.overUnder}`);
 
   // Devigged win probabilities from the moneylines, instead of raw prices.
   const pA = impliedProb(odds.awayMoneyline);
   const pH = impliedProb(odds.homeMoneyline);
   if (pA !== null && pH !== null && pA + pH > 0) {
     const a = Math.round((pA / (pA + pH)) * 100);
-    s += `. Win probability: ${game.away.abbreviation} ${a}%, ${game.home.abbreviation} ${100 - a}%`;
+    items.push(`Win probability: ${game.away.abbreviation} ${a}%, ${game.home.abbreviation} ${100 - a}%`);
   }
-  return { provider: odds.provider, text: s, movement: movementNotes(odds) };
+  return { provider: odds.provider, items };
 }
 
 function returnNote(item) {
@@ -206,15 +173,10 @@ async function injuryView(teamName, teamId, items) {
   );
   const rest = items.slice(8).map((i) => ({ ...i, value: null, context: null, returnNote: returnNote(i) }));
   const all = [...enriched, ...rest];
-  const notable = all.filter((i) => i.status.toLowerCase() !== "day-to-day");
-  const visible = (notable.length > 0 ? notable : all).slice(0, 4);
-  // The disclosure holds only players NOT already shown above it.
-  const more = all.filter((i) => !visible.includes(i));
   return {
     teamName,
     count: all.length,
-    visible,
-    more,
+    all,
   };
 }
 
@@ -342,10 +304,10 @@ export default async function () {
         }
       }
       const awayInjView = isFinal
-        ? { teamName: g.away.displayName, count: 0, visible: [], more: [] }
+        ? { teamName: g.away.displayName, count: 0, all: [] }
         : await injuryView(g.away.displayName, g.away.id, injuries.get(g.away.id) ?? []);
       const homeInjView = isFinal
-        ? { teamName: g.home.displayName, count: 0, visible: [], more: [] }
+        ? { teamName: g.home.displayName, count: 0, all: [] }
         : await injuryView(g.home.displayName, g.home.id, injuries.get(g.home.id) ?? []);
       let check = null;
       let awayStats = null;
@@ -362,8 +324,8 @@ export default async function () {
           awayForm: form.get(g.away.id) ?? null,
           homeRest: rest.get(g.home.id) ?? null,
           awayRest: rest.get(g.away.id) ?? null,
-          homeInjuryItems: [...homeInjView.visible, ...homeInjView.more],
-          awayInjuryItems: [...awayInjView.visible, ...awayInjView.more],
+          homeInjuryItems: homeInjView.all,
+          awayInjuryItems: awayInjView.all,
           homeStats,
           awayStats,
         });
@@ -380,7 +342,7 @@ export default async function () {
               rest.get(g.away.id) ?? null,
             )
           : null,
-        lineCheck: check ? check.text : null,
+        lineCheck: check ? check.items : null,
         analyticsRows: g.statusState === "pre" ? analyticsRows(awayStats, homeStats) : null,
         id: g.id,
         heading: `${g.away.displayName} at ${g.home.displayName}`,
