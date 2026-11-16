@@ -158,6 +158,7 @@ export default async function () {
       lineAtPrediction: p.line_at_prediction ?? "none posted",
       reasoning: p.reasoning,
       graded,
+      outcome: graded ? (p.pick_correct ? "correct" : "incorrect") : null,
       resultLine: !graded
         ? notPlayed.has(p.id)
           ? `Not graded: the game was ${notPlayed.get(p.id).toLowerCase()}`

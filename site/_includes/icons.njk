@@ -1,0 +1,9 @@
+{#- A check for a correct pick, an X for a wrong one. The shapes carry the
+    meaning, not the color, and screen readers hear the word. -#}
+{% macro resultIcon(outcome) -%}
+{%- if outcome == "correct" -%}
+<span class="result-icon correct"><svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" width="20" height="20"><path d="M4 10.5l4 4 8-9" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="visually-hidden">Correct, </span></span>
+{%- elif outcome == "incorrect" -%}
+<span class="result-icon incorrect"><svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" width="20" height="20"><path d="M5 5l10 10M15 5L5 15" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round"/></svg><span class="visually-hidden">Incorrect, </span></span>
+{%- endif -%}
+{%- endmacro %}

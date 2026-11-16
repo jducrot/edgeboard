@@ -9,6 +9,7 @@ navCurrent: slate
 eleventyComputed:
   title: "NBA slate: {{ slate.label }}"
 ---
+{% from "icons.njk" import resultIcon %}
 {% macro scoreSide(side) -%}
 {%- if side.won -%}
 <strong>{{ side.name }} {{ side.score }}<span class="visually-hidden"> (winner)</span></strong>
@@ -70,7 +71,7 @@ eleventyComputed:
       {% if game.myPick %}
       {# Saving a pick returns here (#pick-<id>); tabindex lets the browser move focus to it. #}
       <div class="my-pick" id="pick-{{ game.id }}" tabindex="-1">
-        <p><strong>Your pick:</strong> {{ game.myPick.text }}</p>
+        <p><strong>Your pick:</strong> {{ resultIcon(game.myPick.outcome) }}{{ game.myPick.text }}</p>
         <p class="muted">{{ game.myPick.savedNote }}.{% if game.canEdit %} You can update it in the game details until tip-off.{% endif %}</p>
       </div>
       {% endif %}

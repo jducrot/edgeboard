@@ -4,6 +4,7 @@ permalink: "/review/"
 title: "Prediction review"
 navCurrent: review
 ---
+{% from "icons.njk" import resultIcon %}
 <h1>Prediction review</h1>
 
 <p>{{ journal.summary }}</p>
@@ -17,7 +18,7 @@ navCurrent: review
   <li>
     <article aria-labelledby="pred-{{ p.id }}-heading" class="card">
       <h2 id="pred-{{ p.id }}-heading">{{ p.gameLabel }}, {{ p.gameDateEt }}</h2>
-      <p><strong>Pick:</strong> {{ p.pickLine }}. <strong>Line at prediction:</strong> {{ p.lineAtPrediction }}</p>
+      <p><strong>Pick:</strong> {{ resultIcon(p.outcome) }}{{ p.pickLine }}. <strong>Line at prediction:</strong> {{ p.lineAtPrediction }}</p>
       <p><strong>Result:</strong> {{ p.resultLine }}</p>
       <p><strong>Your reasoning:</strong> {{ p.reasoning }}</p>
 

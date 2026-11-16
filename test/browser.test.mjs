@@ -10,7 +10,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import pw from "playwright";
 import Database from "better-sqlite3";
-import { makeSandbox, startServer, slatePaths, findOpenGame } from "./harness.mjs";
+import { makeSandbox, startServer, slatePaths, findOpenGame, request, postForm } from "./harness.mjs";
 
 const require = createRequire(import.meta.url);
 const AXE = require.resolve("axe-core/axe.min.js");
@@ -114,6 +114,7 @@ test("finished games: one heading with both scores, the winner bold and named in
         bold: [...h.querySelectorAll("strong")].map((s) => ({
           text: s.textContent,
           weight: getComputedStyle(s).fontWeight,
+          background: getComputedStyle(s).backgroundColor,
         })),
         weight: getComputedStyle(h).fontWeight,
         next: h.nextElementSibling?.textContent ?? "",
@@ -129,11 +130,59 @@ test("finished games: one heading with both scores, the winner bold and named in
       assert.equal(h.bold[0].text, `${winner} (winner)`, "the bold side is the higher score and says so in words");
       assert.equal(h.weight, "400", "the rest of the heading is regular weight");
       assert.equal(h.bold[0].weight, "700", "the winner is bold");
+      assert.equal(h.bold[0].background, "rgb(234, 88, 12)", "the winner is highlighted in orange");
       assert.doesNotMatch(h.next, /^Final —/, "the score is not repeated on a second line");
     }
   }
   await page.close();
   if (checked === 0) t.skip("no finished games on the current slates");
+});
+
+test("finished games you picked: a check for a correct pick, an X for a wrong one", async (t) => {
+  // Finished games, and which side won, read from the pages themselves.
+  const finals = [];
+  for (const p of await slatePaths(server)) {
+    const { body } = await request(server, p);
+    for (const m of body.matchAll(/<h2 id="game-(\d+)-heading" class="final-score">(.*?)<\/h2>/g)) {
+      finals.push({ gameId: m[1], ymd: p.match(/\d{8}/)[0], path: p, homeWon: m[2].indexOf("<strong>") > m[2].indexOf(" at ") });
+    }
+  }
+  if (finals.length < 2) return t.skip("fewer than two finished games on the current slates");
+  const [right, wrong] = finals;
+  const db = new Database(path.join(sandbox.data, "edgeboard.db"));
+  const insert = db.prepare(`INSERT INTO predictions (game_id, game_date_et, game_label, pick, pick_team,
+    confidence, reasoning, snapshot_json, created_at_utc) VALUES (?, ?, ?, ?, 'TST', 3, 'Icon test', '{}', ?)`);
+  const etDate = (ymd) => `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6)}`;
+  const side = (homeWon, correct) => (homeWon === correct ? "home" : "away");
+  insert.run(right.gameId, etDate(right.ymd), "Icon test right", side(right.homeWon, true), new Date().toISOString());
+  insert.run(wrong.gameId, etDate(wrong.ymd), "Icon test wrong", side(wrong.homeWon, false), new Date().toISOString());
+  db.close();
+  assert.equal((await postForm(server, "/refresh", {})).status, 303);
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const pickLine = async (g) => {
+    await page.goto(server.base + g.path, { waitUntil: "networkidle" });
+    return page.locator(`#pick-${g.gameId} p`).first().evaluate((p) => ({
+      text: p.textContent.replace(/\s+/g, " ").trim(),
+      icons: [...p.querySelectorAll(".result-icon")].map((i) => i.className),
+      hidden: [...p.querySelectorAll(".result-icon svg")].every((s) => s.getAttribute("aria-hidden") === "true"),
+    }));
+  };
+  const r = await pickLine(right);
+  assert.match(r.text, /^Your pick: Correct, /, "screen readers hear the result");
+  assert.deepEqual(r.icons, ["result-icon correct"], "a check mark, and only one");
+  assert.ok(r.hidden, "the drawing itself is hidden from screen readers");
+  const w = await pickLine(wrong);
+  assert.match(w.text, /^Your pick: Incorrect, /);
+  assert.deepEqual(w.icons, ["result-icon incorrect"], "an X, and only one");
+
+  // The Review page shows the same marks next to each graded pick.
+  await page.goto(server.base + "/review/", { waitUntil: "networkidle" });
+  const reviewIcon = (label) =>
+    page.locator(`article:has(h2:text-is("${label}, ${label === "Icon test right" ? etDate(right.ymd) : etDate(wrong.ymd)}"))`).locator("p", { hasText: "Pick:" }).locator(".result-icon").getAttribute("class");
+  assert.equal(await reviewIcon("Icon test right"), "result-icon correct");
+  assert.equal(await reviewIcon("Icon test wrong"), "result-icon incorrect");
+  await page.close();
 });
 
 test("slate pages for dates outside the window are removed after a build", async () => {

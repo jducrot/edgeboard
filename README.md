@@ -72,7 +72,9 @@ Every game that has not started shows:
 
 Every finished game shows the final score in its heading, for example
 "Dallas Mavericks 117 at Cleveland Cavaliers 127", with the winner in bold
-and named as the winner for screen readers. Overtime games add a
+on an orange highlight and named as the winner for screen readers. If you
+picked the game, a check mark or an X next to "Your pick" shows whether
+your team won. Overtime games add a
 "Final/OT" line. Each finished game also shows **How it happened** (the
 turning point, the box-score factors that decided it, and key
 performances) and **Was it predictable?**, which lists the signals that
@@ -81,8 +83,9 @@ and the pregame line, and says so. A postponed or canceled game shows
 ESPN's status (for example "Postponed") and is never treated as played.
 
 **Review** (`/review/`): every prediction with its result. Finished games
-are graded automatically (a pick on a postponed game says "Not graded"
-instead), and each graded pick gets a computed
+are graded automatically, with the same check mark or X next to each
+pick (a pick on a postponed game says "Not graded" instead), and each
+graded pick gets a computed
 retrospective as a bulleted list, plus a box for your own notes. Each pick
 keeps its frozen snapshot, viewable inline. A link downloads every pick as
 a spreadsheet.
@@ -286,8 +289,9 @@ data, so your real picks are never touched. They cover:
   since your pick.
 - WCAG 2.2 A and AA with axe in light and dark schemes, and reflow at
   320px.
-- Finished-game headings: both scores, and the winner bold and named in
-  words.
+- Finished games: both scores in the heading, the winner bold, orange,
+  and named in words, and a check or an X beside your picks on the cards
+  and the Review page.
 - Saving picks: a double-click saves one pick, a pick still saves when
   part of ESPN is down, and picks close at the scheduled start.
 - Offline behavior, for a brand-new copy and for a restart.
@@ -354,7 +358,12 @@ Things to preserve when editing:
   heading.
 - Stat comparisons are real tables with row and column headers.
 - Every signal is conveyed in words, never by color or weight alone. The
-  winner of a finished game is bold and also named as the winner in text.
+  winner of a finished game is bold on an orange highlight and also named
+  as the winner in text. The orange is #ea580c in both schemes: dark text
+  on it is 4.98:1, and the highlight is at least 3.56:1 against the card.
+  In Windows High Contrast mode it becomes an outline.
+- A check or an X beside a graded pick is a shape, not a color, and
+  screen readers hear "Correct" or "Incorrect".
 - After saving a pick, the page returns to the pick summary on the same
   card. Invalid input gets a page that explains the problem and links
   back.

@@ -237,14 +237,65 @@ a {
 }
 
 /* Finished games: the whole score line is regular weight and the winner is
-   bold, which survives Windows High Contrast mode (a colored highlight
-   would not). */
+   bold on an orange highlight. One orange works in both schemes: dark text
+   on it is 4.98:1, and the highlight itself is 3.56:1 against a light card
+   and 4.98:1 against a dark one. Windows High Contrast mode removes the
+   fill, so the winner keeps its bold weight and gets an outline there. */
+:root {
+  --winner-bg: #ea580c;
+  --winner-text: #18181b;
+}
+
 .card h2.final-score {
   font-weight: 400;
 }
 
 .card h2.final-score strong {
   font-weight: 700;
+  color: var(--winner-text);
+  background: var(--winner-bg);
+  padding: 0 0.3em;
+  border-radius: 4px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+@media (forced-colors: active) {
+  .card h2.final-score strong {
+    outline: 2px solid CanvasText;
+  }
+}
+
+/* A check or an X beside a graded pick. 3:1 or better in both schemes. */
+:root {
+  --correct: #15803d;
+  --incorrect: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --correct: #4ade80;
+    --incorrect: #f87171;
+  }
+}
+
+.result-icon {
+  display: inline-flex;
+  vertical-align: -0.25em;
+  margin-inline-end: 0.25rem;
+}
+
+.result-icon svg {
+  width: 1.25em;
+  height: 1.25em;
+}
+
+.result-icon.correct {
+  color: var(--correct);
+}
+
+.result-icon.incorrect {
+  color: var(--incorrect);
 }
 
 .card h3 {

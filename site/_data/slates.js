@@ -158,6 +158,12 @@ function fmtEt(isoUtc) {
 }
 
 /** "Your pick: <team> by <margin> because <reasoning>", as entered. */
+/** "correct", "incorrect", or null while the game has no final score. */
+function pickOutcome(pick, score) {
+  if (!score || !(score.home.won || score.away.won)) return null;
+  return score[pick].won ? "correct" : "incorrect";
+}
+
 function pickView(row, g) {
   const team = row.pick === "home" ? g.home.displayName : g.away.displayName;
   const reasoning = String(row.reasoning ?? "").trim();
@@ -168,6 +174,8 @@ function pickView(row, g) {
     savedNote: row.updated_at_utc
       ? `Updated ${fmtEt(row.updated_at_utc)}`
       : `Saved ${fmtEt(row.created_at_utc)}`,
+    // Graded straight from the final score shown on the card.
+    outcome: pickOutcome(row.pick, finalScore(g, g.statusState === "post")),
     pick: row.pick,
     margin: row.predicted_margin,
     confidence: row.confidence,
