@@ -257,11 +257,18 @@ NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt npm run dev
 
 ## Testing
 
-Once on a new computer, install the test browser (about 150 MB):
+Install the test browser (about 150 MB) once on a new computer, and again
+after each Playwright update, because each version needs its own browser
+build. If it is missing, the browser tests fail with this same command in
+the message.
 
 ```bash
 npx playwright install chromium
 ```
+
+To use a browser that is already installed instead, set
+`EDGEBOARD_CHROMIUM_PATH` to its path (a Claude Code cloud container
+uses `/opt/pw-browsers/chromium`).
 
 Then:
 
