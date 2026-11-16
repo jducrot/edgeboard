@@ -1,171 +1,234 @@
 # EdgeBoard
 
-A personal NBA decision tool. It puts the stats, betting lines, line movement,
-and injury news for each game on one screen, lets you log a prediction with
-your reasoning, freezes a snapshot of everything you knew at that moment, then
-grades the prediction after the game and prompts a retrospective so your
-process improves over time.
+A personal NBA decision tool. It puts the stats, betting lines, injury news,
+and lineup data for each game on one screen and lets you log a prediction
+with your reasoning. It freezes a snapshot of everything you knew at that
+moment, then grades the prediction after the game and writes a
+retrospective, so you can see which reads work and refine your approach.
 
-EdgeBoard does not pretend to beat the closing line. It helps you synthesize
+EdgeBoard does not pretend to beat the closing line. It helps you take in
 public information faster, and it keeps you honest about whether your reads
 are working.
 
 ## Stack
 
 - [Eleventy](https://www.11ty.dev/) 3.x renders every page as static HTML
-  with Nunjucks templates. No client-side JavaScript at all.
-- A small dependency-free Node server (`server.mjs`) serves the built site,
-  handles the three form endpoints (`/predict`, `/retro`, `/refresh`),
-  writes to SQLite, and rebuilds the site when data changes. Pages also
-  rebuild on visit once the last build is more than 5 minutes old, so an
-  idle server makes no requests at all.
-- SQLite (better-sqlite3) stores predictions at `data/edgeboard.db`,
-  created on first use and gitignored. Your picks never leave your machine.
+  with Nunjucks templates. The pages run no JavaScript at all.
+- A small Node server (`server.mjs`) serves the built pages, handles the
+  forms (`/predict`, `/predict/update`, `/retro`, `/refresh`) and the
+  `/export.csv` download, writes to SQLite, and rebuilds the pages when
+  data changes. Pages also rebuild on visit once the last build is more
+  than 5 minutes old, so an idle server makes no requests at all.
+- SQLite (better-sqlite3) stores your picks in `data/edgeboard.db` and
+  lineup history in `data/history.db`. Both are created on first use and
+  never committed. Your picks never leave your computer.
 
 ## Pages
 
-- **Slate** (`/`, redirects to `/slate/YYYYMMDD/`): game cards for
-  yesterday, today, and tomorrow. Each pregame card opens with a **Line
-  check**: a transparent stats-only margin estimate (pace-scaled last-10
-  net ratings when available, else season scoring margins; home court at
-  +2.5; back-to-backs at -2; fresh key absences at -3 each capped at -6)
-  compared against the spread, with every component named, a verdict
-  (aligned, mild or strong disagreement), and a list of
-  game-time-decision key players as unpriced uncertainty. Each card also
-  shows the market's expected margin (the spread, phrased plainly), the
-  total shown only with our own pace-and-efficiency projection beside it
-  (over/under lean), and devigged win probabilities, as a bulleted list; records, a per-team matchup projection (opponent
-  defense vs league average), last-10 form and streaks; rest days and
-  back-to-backs; a **Last 10 analytics** table aggregated from each
-  team's last ten box scores, opened by a **League rank** table placing
-  each team 1st to 30th over its last 10 games in offense (points per 100),
-  defense (points allowed per 100), rebounding (share of all boards), and
-  3-point percentage, across every team in the league (possession-adjusted net/offensive/defensive
-  ratings, pace, eFG% for and against, turnover battle, offensive
-  rebound %, FT rate, and the three-point profile with opponent 3P% as a
-  regression flag); and per-team disclosure widgets for the starting
-  five and the injury list (labelled like "4 Pacers injuries"), collapsed
-  by default. Each listed player gets
-  an impact line (their recent production when playing) and an absence
-  context line: a fresh absence whose production goes missing tonight, or
-  one already reflected in the team's recent record, with the team's W-L
-  in the games missed. Each team also shows a projected starting five,
-  ranked from its last five games by starts weighted toward each player's
-  own most recent appearances, so a rest night does not drop a regular
-  starter while a starter moved to the bench loses his spot within two or
-  three games. Players no longer on the roster are excluded. Starters
-  listed Out are replaced by the next-ranked healthy players, marked as
-  projected, so every lineup shows five. A starter who missed recent games
-  with no injury listing gets a bolded "status unconfirmed" note, rotation
-  players (20+ minutes) in the same situation are listed as "Also
-  unaccounted for", and both feed the Line check's uncertainty bullet.
-  Each starter has a hot/cold/steady scoring trend over their last five
-  appearances against the five before, and a marker when a player entered
-  the lineup within the last several games, which usually means injury
-  cover. Above each lineup, "Starters O:, Starters DA:" gives the five's
-  average indices (the average, not the sum, so 100 still means an average
-  starter). Each starter also carries two normalized
-  indices: an offense index (45% points per 36, 30% true shooting, 25%
-  assists minus turnovers per 36) and a defensive activity index (40%
-  steals, 40% blocks, 20% rebounds, per 36), z-scored across every
-  tracked starter on the slates and mapped to mean 100 with 15 points
-  per standard deviation. Defense is labelled "activity" deliberately:
-  box scores cannot see positioning or rim protection, and true
-  defensive ratings need stats.nba.com, which blocks cloud servers.
-  Games that have not tipped off carry a prediction form. Saving a pick
-  keeps you on the slate and returns you to that game's card, which then
-  shows "Your pick: <team> by <margin> because <reasoning>" below the Line
-  check and collapses the rest of the card behind a "View game details"
-  button. Until tip-off, the details hold an update form (updating
-  refreshes the frozen snapshot) and a "Changed since your pick" list
-  comparing the snapshot with current data: line and win-probability
-  moves, injury status changes, projected lineup changes, and games played
-  in between. Changed items are also marked in place, in words, and the
-  button label carries the count. Finished games swap the injury report for a "How it happened"
-  section: a computed verdict against the pregame line (held up,
-  overpriced favorite, or upset), the quarter where the game turned, the
-  two or three box-score factors that decided it, top performers, and who
-  was listed out for that game. It is rule-based text from the box score,
-  labelled as such.
-- **Cohesion** (on pregame cards): how long each team's projected
-  starters have played together, from a lineup history of every game
-  last season and this one, playoffs included: starts together for this
-  exact five, the average starts together across the five's 10 pairs, and
-  the share of this season's minutes from players who were on the team
-  last season.
-- **Insights** (`/insights/`): research results. First question: does the
-  more cohesive team beat the spread? Every game is scored using only
-  games played before it, results are shown by slice with 95% ranges, and
-  the verdict states plainly when a result is indistinguishable from
-  chance. Cohesion stays out of the Line check unless this test shows an
-  edge.
-- **Review** (`/review/`): every prediction with its outcome. Finished games
-  are graded automatically at build time. Graded predictions get an automatically
-  computed retrospective (your pick vs the market's pick vs the result,
-  plus the box-score factors that decided the game) and a free-text
-  notes box for your own takeaways. Each prediction keeps a frozen snapshot of its
-  inputs, viewable inline.
+**Slate** (`/` opens today's): game cards for yesterday, today, and
+tomorrow.
+
+Every game that has not started shows:
+
+- **The market**, in plain terms: the expected margin (the spread) and win
+  probabilities with the bookmaker's cut removed. The total appears only
+  next to EdgeBoard's own pace-and-efficiency projection, because a bare
+  total says nothing about who wins.
+- **Line check**: a stats-only margin estimate compared with the spread,
+  with every part named. It uses last-10 net ratings scaled for pace (or
+  season scoring margins early on), +2.5 for home court, -2 for a
+  back-to-back, and -3 for each fresh key absence, capped at -6. Players
+  who are game-time decisions, or missing with no injury listed, are named
+  as risks the estimate cannot price.
+- **Matchup table**: records, each offense against the other team's
+  defense (already subtracted, so no math is needed), last 10 and streak,
+  and rest.
+- **League rank** over the last 10 games, 1st to 30th, in offense,
+  defense, rebounding, and 3-point shooting.
+- **Cohesion**: how long each projected starting five has played
+  together, from a lineup history covering last season and this one.
+- **Last 10 analytics**: pace, offensive and defensive ratings, effective
+  shooting, turnovers, offensive rebounding, free throw rate, and the
+  3-point profile.
+- **Starters**, always shown: a projected five, ranked from the last five
+  games with recent starts weighted most. Starters listed Out are replaced
+  by the next healthy players, marked as projected, so every team shows
+  five. Each starter has a scoring trend (hot, cold, or steady over the
+  last five games) and two ratings where 100 is league average: O
+  (offense) and DA (defensive activity, from steals, blocks, and rebounds,
+  because box scores cannot see positioning). A starter who missed recent
+  games with no injury listed is flagged in bold.
+- **Injuries**, in a disclosure labelled like "4 Pacers injuries". Each
+  player shows their recent production and whether the absence is new or
+  already reflected in the team's record.
+- **A prediction form.** Saving keeps you on the slate and returns you to
+  the game's card, which then shows "Your pick: [team] by [margin] because
+  [reasoning]" and folds the rest of the card behind a "View game details"
+  button. Until tip-off you can update the pick there, and a "Changed since
+  your pick" list shows what moved: the line, win probability, injuries,
+  the projected lineup, and games played in between. Changed items are
+  also marked in place, in words.
+
+Every finished game shows the final score in its heading, for example
+"Dallas Mavericks 117 at Cleveland Cavaliers 127", with the winner in bold
+and named as the winner for screen readers. Overtime games add a
+"Final/OT" line. Each finished game also shows **How it happened** (the
+turning point, the box-score factors that decided it, and key
+performances) and **Was it predictable?**, which lists the signals that
+pointed each way before the game. This text is computed from the box score
+and the pregame line, and says so.
+
+**Review** (`/review/`): every prediction with its result. Finished games
+are graded automatically, and each graded pick gets a computed
+retrospective as a bulleted list, plus a box for your own notes. Each pick
+keeps its frozen snapshot, viewable inline. A link downloads every pick as
+a spreadsheet.
+
+**Insights** (`/insights/`): research results. The first question is
+whether the more cohesive team beats the spread. Every game is scored using
+only games played before it, and results are shown with 95% ranges and a
+plain verdict. So far the answer is no better than chance, so cohesion
+stays out of the Line check.
 
 ## Data sources
 
-All free, no API keys:
+All free, with no API keys:
 
-- `site.api.espn.com` — scoreboard, standings, injuries
-- `sports.core.api.espn.com` — betting odds, including open vs. current lines
+- `site.api.espn.com`: scoreboards, game summaries, standings, injuries,
+  team schedules and rosters, player game logs, and news
+- `sports.core.api.espn.com`: betting odds, rosters, and coaches
 
 Lineup history lives in `data/history.db`, separate from your picks so it
 can be deleted and rebuilt at any time. The server fills it in the
-background on first start (about 1,500 games in under a minute; pages work
-meanwhile) and then fetches only newly finished games, at most hourly. A
-game ESPN has no box score for is skipped rather than retried forever.
+background on first start (about 1,500 games in under a minute, and pages
+work meanwhile), then fetches only newly finished games, at most hourly. A
+game ESPN has no box score for is skipped instead of retried forever.
 
 Caching, fastest layer first:
 
-1. An in-memory memo (60 seconds) merges identical requests, so one build
-   reads each response once even with every game building in parallel.
+1. A 60-second memory cache merges identical requests, so one build reads
+   each response once even with every game building at the same time.
 2. `@11ty/eleventy-fetch` caches responses on disk in `.cache/`: odds and
    scoreboards for 2 minutes, injuries for 10, standings for 30, team
-   schedules for 1 hour, player game logs for 3 hours. Schedules and game
-   logs are large and only change when a game ends.
+   schedules for 1 hour, and player game logs for 3 hours. Schedules and
+   game logs are stored with only the fields EdgeBoard reads, which keeps
+   the whole cache near 17 MB instead of about 104 MB.
 3. Finished-game summaries are stored permanently in `.cache/summaries/`,
-   stripped to the fields the app reads (about 42 KB instead of 475 KB).
+   stripped to the fields EdgeBoard reads (about 42 KB each instead of
+   475 KB).
 
-The server prunes `.cache/` at startup and then at most daily: fetch
-responses unused for 2 days and summaries older than 45 days (last-10
-analytics reach back about three weeks). Rest days are computed from the
-previous four days of scoreboards. Odds are enrichment: cards render fine
-before lines are posted.
+The server cleans `.cache/` at most once a day, and only after a
+successful download: responses unused for 2 days and summaries older than
+45 days. Slate pages for dates that have left the three-day window are
+deleted after each build, so an old date never shows stale data.
 
-Note: `stats.nba.com` (true net rating, pace) blocks datacenter IPs, so it is
-not used yet.
+`stats.nba.com` (true net rating, pace) blocks cloud servers, so it is not
+used.
 
 ## Running it
 
-Requires Node 22 or newer. `npm run dev` checks this first and explains
-how to fix it, because older versions can crash with "segmentation fault"
-(the database driver does not support them), and `npm install` refuses to
-run on them (`.npmrc` sets `engine-strict`). With nvm, `nvm use` picks the
-right version from `.nvmrc`. After changing Node versions, delete
-`node_modules` and run `npm install` again so the database driver is
-rebuilt for the new version.
+EdgeBoard needs Node 22 or newer. Any current release from
+[nodejs.org](https://nodejs.org/) works. The database driver includes
+ready-made builds for Mac (Apple silicon and Intel) and Windows (x64 and
+Arm), so no compiler is needed.
+
+### Mac
+
+With [Homebrew](https://brew.sh/) (or use the nodejs.org installer):
+
+```bash
+brew install node@22
+```
+
+Then, in the `edgeboard` folder:
 
 ```bash
 npm install
+```
+
+```bash
 npm run dev
 ```
 
-Then open http://localhost:3000. The site builds once on startup (about 6
-seconds cold, about 1 second warm), then rebuilds when you load a page more
-than 5 minutes after the last build, after every saved prediction or note,
-and on the "Refresh data now" button in the footer. To change the 5-minute
-window, set `EDGEBOARD_STALE_MS` in milliseconds.
+### Windows
 
-After pulling code changes, restart the server (Ctrl+C, then `npm run dev`
-again). The running process keeps old code in Node's module cache, so a
-refresh alone rebuilds with stale logic.
+Install Node with the nodejs.org installer, or in PowerShell:
 
-In a proxied environment (such as a Claude Code cloud container), Node's
-fetch must be told to honor the proxy:
+```powershell
+winget install OpenJS.NodeJS.LTS
+```
+
+Close and reopen PowerShell, then, in the `edgeboard` folder:
+
+```powershell
+npm install
+```
+
+```powershell
+npm run dev
+```
+
+Settings are written differently in PowerShell. Where this README shows
+`NAME=value npm run dev`, PowerShell uses:
+
+```powershell
+$env:NAME="value"; npm run dev
+```
+
+A setting made that way lasts until you close the window. To clear it
+sooner, run `Remove-Item Env:NAME`.
+
+### Once it is running
+
+Open http://localhost:3000. The pages build on first start (about 6
+seconds with an empty cache, about 1 second after that). Then they rebuild
+when you load a page more than 5 minutes after the last build, after every
+saved pick or note, and when you press "Refresh data now" in the footer.
+EdgeBoard works the same from any folder you start it in.
+
+After pulling code changes, stop the server with Ctrl+C and run
+`npm run dev` again. A running server keeps the old code in memory.
+
+### When something goes wrong
+
+Startup problems end in a plain explanation and the fix, never a wall of
+red error text:
+
+- **Node is too old.** EdgeBoard stops before loading anything and says
+  which version to install. Older versions can crash with "segmentation
+  fault" because the database driver does not support them, and
+  `npm install` refuses to run on them (`.npmrc` sets `engine-strict`).
+  After changing Node versions, reinstall the packages:
+  - Mac: `rm -rf node_modules`, then `npm install`
+  - Windows (PowerShell): `Remove-Item -Recurse -Force node_modules`, then
+    `npm install`
+- **EdgeBoard is already running.** A second copy stops at once and says
+  how to use another port, instead of building over the first copy's
+  pages.
+- **`PORT` is mistyped.** EdgeBoard stops and shows the value it got.
+- **No internet on a brand-new copy.** EdgeBoard keeps running, shows a
+  "No data yet" page, and tries again when you load a page.
+- **A refresh fails.** One line explains why, and the last pages built
+  stay up.
+
+Set `EDGEBOARD_DEBUG=1` to also print full technical details.
+
+### Settings
+
+All optional.
+
+| Setting | What it does | Default |
+| --- | --- | --- |
+| `PORT` | The port to serve on | `3000` |
+| `EDGEBOARD_STALE_MS` | How old pages can get before a visit rebuilds them, in milliseconds | `300000` (5 minutes) |
+| `EDGEBOARD_BACKUP_DIR` | Where daily backups go | `data/backups` |
+| `EDGEBOARD_DEBUG` | Set to `1` to print full error details | off |
+| `HOST` and `EDGEBOARD_ALLOWED_HOSTS` | Open EdgeBoard to your network (see Security) | this computer only |
+| `EDGEBOARD_DATA_DIR`, `EDGEBOARD_OUT_DIR`, `EDGEBOARD_CACHE_DIR` | Move the data, built pages, and download cache | `data`, `_site`, `.cache` |
+| `EDGEBOARD_NO_HISTORY_SYNC` | Set to `1` to skip the lineup history download | off |
+
+In a proxied environment such as a Claude Code cloud container, Node must
+be told to use the proxy:
 
 ```bash
 NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt npm run dev
@@ -173,95 +236,105 @@ NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt npm run dev
 
 ## Backups and export
 
-- **Daily backups.** Each day the app first runs, it copies your picks to
+- **Daily backups.** Each day EdgeBoard first runs, it copies your picks to
   `data/backups/edgeboard-picks-YYYY-MM-DD.db` and keeps the newest 14.
-  The copy is made with SQLite's online backup, so it is consistent even
-  while the app is writing. To keep backups somewhere safer, set
+  The copy uses SQLite's online backup, so it is complete even while the
+  app is writing. To keep backups somewhere safer, set
   `EDGEBOARD_BACKUP_DIR` to a synced folder such as iCloud Drive or
   OneDrive. That is safe for these finished copies, but never point the
-  live `data/` folder at a synced folder: syncing a database while it is
-  open can corrupt it. Lineup history is not backed up because it can
-  always be downloaded again.
-- **To restore a backup:** stop the app, delete `data/edgeboard.db` and
-  its `-wal` and `-shm` files, copy the backup to `data/edgeboard.db`,
-  and start the app.
-- **CSV export.** The Review page has a link to download every pick as a
-  spreadsheet (`/export.csv`). Text that a spreadsheet would run as a
-  formula is neutralized.
+  live `data/` folder at a synced folder, because syncing a database while
+  it is open can corrupt it. Lineup history is not backed up because it
+  can always be downloaded again.
+- **To restore a backup:** stop EdgeBoard, delete `data/edgeboard.db` and
+  its `-wal` and `-shm` files, copy the backup to `data/edgeboard.db`, and
+  start EdgeBoard.
+- **Spreadsheet export.** The Review page links to `/export.csv`, which
+  has every pick. Text that a spreadsheet would run as a formula is
+  neutralized.
 
 ## Testing
+
+Once on a new computer, install the test browser (about 150 MB):
 
 ```bash
 npx playwright install chromium
 ```
 
-once on a new computer (a test browser, about 150 MB), then:
+Then:
 
 ```bash
 npm test
 ```
 
-Twenty tests, about 30 seconds, run against throwaway copies of the data
-(your real picks are never touched). They cover security (only this
-computer can connect, forged forms and foreign addresses are refused,
-safety headers, typed text is never run as code), the pick flow in a real
-browser (save in place, update, changes since your pick), WCAG 2.2 A and
-AA with axe in light and dark schemes, reflow at 320px, offline behavior
-(a fresh copy and a restart), backups, the CSV export, the save-during-
-refresh fix, and the wordmark. The tests need internet for live ESPN
-data; the offline tests simulate having none.
+The 25 tests take about 30 seconds and run against throwaway copies of
+the data, so your real picks are never touched. They cover:
 
-Settings used by the tests, also available to you: `EDGEBOARD_DATA_DIR`,
-`EDGEBOARD_OUT_DIR`, and `EDGEBOARD_CACHE_DIR` move the data, built pages,
-and download cache; `EDGEBOARD_NO_HISTORY_SYNC=1` skips the lineup
-history download.
+- Security: only this computer can connect, forged forms and foreign
+  addresses are refused, safety headers are sent, and typed text is never
+  run as code.
+- The pick flow in a real browser: save in place, update, and changes
+  since your pick.
+- WCAG 2.2 A and AA with axe in light and dark schemes, and reflow at
+  320px.
+- Finished-game headings: both scores, and the winner bold and named in
+  words.
+- Offline behavior, for a brand-new copy and for a restart.
+- Startup problems: old Node, a second copy, and a mistyped port.
+- Backups, the spreadsheet export, old slate pages being removed, saves
+  made during a refresh, and the wordmark.
+
+The tests need internet for live ESPN data. The offline tests simulate
+having none.
 
 ## Security and offline behavior
 
 EdgeBoard is built for one person on one computer, and defends that:
 
 - **Only this computer can reach it.** The server listens on 127.0.0.1
-  (and ::1 where IPv6 exists), not on your network, so devices on the
-  same Wi-Fi cannot see or change your picks, and Mac and Windows do not
-  ask to allow incoming connections. To deliberately open it to your
-  network, set `HOST=0.0.0.0` and list the addresses you will use in
+  (and ::1 where IPv6 exists), not on your network. Devices on the same
+  Wi-Fi cannot see or change your picks, and Mac and Windows do not ask to
+  allow incoming connections. To deliberately open it to your network,
+  set `HOST=0.0.0.0` and list the addresses you will use in
   `EDGEBOARD_ALLOWED_HOSTS` (for example `192.168.1.20:3000`).
 - **Only its own pages can change data.** Form submissions are accepted
   only when the browser marks them as coming from EdgeBoard itself
   (`Sec-Fetch-Site`, or a matching `Origin` or `Referer`), so another
   website cannot submit hidden forms to it.
 - **Only requests addressed to it are answered.** Any other `Host` is
-  refused, which blocks websites from reading it through a hostname trick
+  refused, which stops websites from reading it through a hostname trick
   (DNS rebinding).
 - **Browsers are told to run no scripts at all**, never to show it inside
-  another site's frame, and not to guess file types. The app uses no
-  JavaScript, so this costs nothing and turns any future escaping mistake
-  into a non-event.
+  another site's frame, and not to guess file types. EdgeBoard uses no
+  JavaScript in its pages, so this costs nothing and turns any future
+  escaping mistake into a non-event.
 
-**Offline:** if pages from an earlier run exist, the server starts
-serving them immediately and refreshes in the background. When ESPN cannot
-be reached, pages are rebuilt from data saved on this computer and every
-page shows a notice saying when data was last really downloaded; it
-retries at most once a minute. The cache is cleaned only after a
-successful download, so time offline never deletes the data that keeps
-the app working. A brand-new copy started offline shows a "No data yet"
-page instead of crashing. Every network request has a deadline, so a
-hanging connection cannot stall the app.
+**Offline:** if pages from an earlier run exist, EdgeBoard serves them
+immediately and refreshes in the background. When ESPN cannot be reached,
+pages are rebuilt from data saved on this computer, and every page says
+when data was last really downloaded. It retries at most once a minute.
+The cache is cleaned only after a successful download, so time offline
+never deletes the data that keeps the app working. Every network request
+has a deadline, so a hanging connection cannot stall the app.
 
 ## Accessibility
 
-WCAG 2.2 AA is the baseline. The current build passes axe-core (WCAG
-2.0/2.1/2.2 A and AA rule tags) with zero violations on both pages in light
-and dark schemes, and reflows without horizontal scrolling down to 320px
-(Success Criterion 1.4.10). The layout uses the full window width: game
-cards fill as many 32rem-minimum columns as fit, and in-card columns
-respond to the card's width through container queries, not the window's. Because there is no client JavaScript, every interaction is
-a native form submission with a full page response, so there are no live
-regions, hydration gaps, or client state to announce.
+WCAG 2.2 A and AA are the baseline for every change. Every page passes
+axe-core (WCAG 2.0, 2.1, and 2.2 A and AA rules) with zero violations in
+light and dark schemes, and reflows without sideways scrolling at 320px
+(Success Criterion 1.4.10). The layout uses the full window: game cards
+fill as many columns as fit (at least 32rem each), and the columns inside
+a card respond to the card's width, not the window's. With no JavaScript,
+every interaction is a normal form submission that loads a new page, so
+there is no hidden state for assistive technology to miss.
 
-Semantics worth preserving when editing: one `h1` per page, game cards are
-`article` elements labelled by their heading, stat comparisons are real
-tables with row and column headers, every signal is conveyed in text rather
-than color alone, form feedback arrives as a navigated page (the review page
-after a save, a descriptive error page with a way back on invalid input), and
-interactive targets are at least 44px tall.
+Things to preserve when editing:
+
+- One `h1` per page. Game cards are `article` elements labelled by their
+  heading.
+- Stat comparisons are real tables with row and column headers.
+- Every signal is conveyed in words, never by color or weight alone. The
+  winner of a finished game is bold and also named as the winner in text.
+- After saving a pick, the page returns to the pick summary on the same
+  card. Invalid input gets a page that explains the problem and links
+  back.
+- Buttons, form controls, and navigation links are at least 44px tall.

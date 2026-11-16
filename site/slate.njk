@@ -9,6 +9,13 @@ navCurrent: slate
 eleventyComputed:
   title: "NBA slate: {{ slate.label }}"
 ---
+{% macro scoreSide(side) -%}
+{%- if side.won -%}
+<strong>{{ side.name }} {{ side.score }}<span class="visually-hidden"> (winner)</span></strong>
+{%- else -%}
+{{ side.name }} {{ side.score }}
+{%- endif -%}
+{%- endmacro %}
 <h1>NBA slate: {{ slate.label }}</h1>
 
 <nav aria-label="Slate date" class="date-nav">
@@ -28,8 +35,14 @@ eleventyComputed:
   {%- for game in slate.games %}
   <li>
     <article id="game-{{ game.id }}" aria-labelledby="game-{{ game.id }}-heading" class="card">
+      {% if game.finalScore %}
+      {# The winner is bold, and named in words for screen readers, so the
+         highlight never depends on sight alone. #}
+      <h2 id="game-{{ game.id }}-heading" class="final-score">{{ scoreSide(game.finalScore.away) }} at {{ scoreSide(game.finalScore.home) }}</h2>
+      {% else %}
       <h2 id="game-{{ game.id }}-heading">{{ game.heading }}</h2>
-      <p class="muted">{{ game.statusLine }}</p>
+      {% endif %}
+      {% if game.statusLine %}<p class="muted">{{ game.statusLine }}</p>{% endif %}
 
       {% if game.odds %}
       <p class="fact-lead"><strong>{{ game.odds.provider }}:</strong></p>
@@ -219,7 +232,10 @@ eleventyComputed:
           <ul>
             {%- for s in side.starters %}
             <li>
-              <strong>{{ s.name }}</strong>{% if s.pos %} ({{ s.pos }}){% endif %}{% if s.projected %} — projected to start in place of an injured starter{% elif s.newToLineup %} — recently entered the starting lineup, often injury cover{% endif %}{% if s.gtdNote %} — {{ s.gtdNote }}{% endif %}{% if s.absenceNote %} — <strong>{{ s.absenceNote }}</strong>{% endif %}
+              <strong>{{ s.name }}</strong>{% if s.pos %} ({{ s.pos }}){% endif %}
+              {% if s.projected %}<br>Projected to start in place of an injured starter{% elif s.newToLineup %}<br>Recently entered the starting lineup, often injury cover{% endif %}
+              {% if s.gtdNote %}<br>{{ s.gtdNote | upperFirst }}{% endif %}
+              {% if s.absenceNote %}<br><strong>{{ s.absenceNote | upperFirst }}</strong>{% endif %}
               {% if s.changedNote %}<br><span class="changed">{{ s.changedNote }}</span>{% endif %}
               {% if s.trend %}<br>{{ s.trend }}{% endif %}
               {% if s.indexLine %}<br>{{ s.indexLine }}{% endif %}
@@ -227,8 +243,12 @@ eleventyComputed:
             {%- endfor %}
           </ul>
           {% if side.unaccounted and side.unaccounted.length %}
-          <p><strong>Also unaccounted for:</strong>
-            {%- for u in side.unaccounted %} {{ u.name }} {{ u.note }}{% if not loop.last %};{% else %}.{% endif %}{%- endfor %}
+          <p class="fact-lead"><strong>Also unaccounted for:</strong></p>
+          <ul class="fact-list">
+            {%- for u in side.unaccounted %}
+            <li>{{ u.name }} {{ u.note }}.</li>
+            {%- endfor %}
+          </ul>
           </p>
           {% endif %}
           <p class="muted">100 is league average</p>
@@ -250,7 +270,7 @@ eleventyComputed:
             <ul>
               {%- for i in side.inj.all %}
               <li>
-                <strong>{{ i.athlete }}</strong>{% if i.position %} ({{ i.position }}){% endif %} — {{ i.status }}{% if i.returnNote %} {{ i.returnNote }}{% endif %}
+                <strong>{{ i.athlete }}</strong>{% if i.position %} ({{ i.position }}){% endif %}: {{ i.status }}{% if i.returnNote %} {{ i.returnNote }}{% endif %}
                 {% if i.changedNote %}<br><span class="changed">{{ i.changedNote }}</span>{% endif %}
                 {% if i.value %}<br>{{ i.value }}{% endif %}
                 {% if i.context %}<br>{{ i.context }}{% endif %}

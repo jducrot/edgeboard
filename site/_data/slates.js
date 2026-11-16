@@ -256,6 +256,20 @@ function finalOddsLine(odds, game) {
   return { provider: odds.provider, items: sentences };
 }
 
+/**
+ * The scoreline for a finished game's heading, with the winner marked.
+ * ESPN's winner flag decides it, with the higher score as a fallback.
+ */
+function finalScore(g, isFinal) {
+  if (!isFinal || g.home.score === null || g.away.score === null) return null;
+  const won = (side, other) =>
+    side.winner === true || (side.winner == null && other.winner == null && side.score > other.score);
+  return {
+    away: { name: g.away.displayName, score: g.away.score, won: won(g.away, g.home) },
+    home: { name: g.home.displayName, score: g.home.score, won: won(g.home, g.away) },
+  };
+}
+
 function oddsLine(odds, game, isFinal = false, awayStats = null, homeStats = null) {
   if (!odds) return null;
   if (isFinal) return finalOddsLine(odds, game);
@@ -278,7 +292,7 @@ function oddsLine(odds, game, isFinal = false, awayStats = null, homeStats = nul
     const diff = proj - odds.overUnder;
     const lean =
       diff >= 4 ? "stats lean over" : diff <= -4 ? "stats lean under" : "in line with the stats";
-    items.push(`Total: ${odds.overUnder} — pace and efficiency project ~${Math.round(proj)}, ${lean}`);
+    items.push(`Total: ${odds.overUnder} (pace and efficiency project about ${Math.round(proj)}, ${lean})`);
   }
 
   // Devigged win probabilities from the moneylines, instead of raw prices.
@@ -563,10 +577,10 @@ export default async function () {
           : null,
         id: g.id,
         heading: `${g.away.displayName} at ${g.home.displayName}`,
-        statusLine:
-          isFinal && g.home.score !== null && g.away.score !== null
-            ? `${g.statusDetail} — ${g.away.abbreviation} ${g.away.score}, ${g.home.abbreviation} ${g.home.score}`
-            : g.statusDetail,
+        finalScore: finalScore(g, isFinal),
+        // A finished game's heading carries the score, so the status line
+        // only remains when it adds something, such as "Final/OT".
+        statusLine: finalScore(g, isFinal) && g.statusDetail === "Final" ? null : g.statusDetail,
         away: g.away,
         home: g.home,
         odds: oddsView,

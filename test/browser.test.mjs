@@ -5,6 +5,7 @@
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { createRequire } from "node:module";
 import pw from "playwright";
@@ -14,6 +15,8 @@ import { makeSandbox, startServer, slatePaths, findOpenGame } from "./harness.mj
 const require = createRequire(import.meta.url);
 const AXE = require.resolve("axe-core/axe.min.js");
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+// A slate page for a date long gone, left over as if from an earlier run.
+const OLD_SLATE = "20000101";
 
 let sandbox;
 let server;
@@ -28,6 +31,8 @@ before(async () => {
     );
   }
   sandbox = await makeSandbox();
+  await fs.mkdir(path.join(sandbox.out, "slate", OLD_SLATE), { recursive: true });
+  await fs.writeFile(path.join(sandbox.out, "slate", OLD_SLATE, "index.html"), "<p>Old data</p>");
   server = await startServer(sandbox);
 });
 
@@ -95,6 +100,49 @@ test("a pick is saved in place, updated, and changes since it are flagged", asyn
 
   assert.deepEqual(securityErrors, [], "the browser safety rules must not break the page");
   await page.close();
+});
+
+test("finished games: one heading with both scores, the winner bold and named in words", async (t) => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  let checked = 0;
+  for (const p of await slatePaths(server)) {
+    await page.goto(server.base + p, { waitUntil: "networkidle" });
+    const headings = await page.locator("h2.final-score").evaluateAll((els) =>
+      els.map((h) => ({
+        text: h.textContent,
+        visible: h.innerText,
+        bold: [...h.querySelectorAll("strong")].map((s) => ({
+          text: s.textContent,
+          weight: getComputedStyle(s).fontWeight,
+        })),
+        weight: getComputedStyle(h).fontWeight,
+        next: h.nextElementSibling?.textContent ?? "",
+      })),
+    );
+    for (const h of headings) {
+      checked++;
+      const m = /^(.+) (\d+) at (.+) (\d+)$/.exec(h.text.replace(" (winner)", ""));
+      assert.ok(m, `heading reads "Team score at Team score": ${h.text}`);
+      const [away, home] = [Number(m[2]), Number(m[4])];
+      const winner = away > home ? `${m[1]} ${away}` : `${m[3]} ${home}`;
+      assert.equal(h.bold.length, 1, `exactly one side is bold: ${h.text}`);
+      assert.equal(h.bold[0].text, `${winner} (winner)`, "the bold side is the higher score and says so in words");
+      assert.equal(h.weight, "400", "the rest of the heading is regular weight");
+      assert.equal(h.bold[0].weight, "700", "the winner is bold");
+      assert.doesNotMatch(h.next, /^Final —/, "the score is not repeated on a second line");
+    }
+  }
+  await page.close();
+  if (checked === 0) t.skip("no finished games on the current slates");
+});
+
+test("slate pages for dates outside the window are removed after a build", async () => {
+  const paths = await slatePaths(server);
+  assert.ok(paths.length > 0);
+  for (const p of paths) {
+    await assert.doesNotReject(fs.access(path.join(sandbox.out, p, "index.html")), `${p} was built`);
+  }
+  await assert.rejects(fs.access(path.join(sandbox.out, "slate", OLD_SLATE)), "the old slate folder is gone");
 });
 
 for (const scheme of ["light", "dark"]) {

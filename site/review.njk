@@ -16,7 +16,7 @@ navCurrent: review
   {%- for p in journal.predictions %}
   <li>
     <article aria-labelledby="pred-{{ p.id }}-heading" class="card">
-      <h2 id="pred-{{ p.id }}-heading">{{ p.gameLabel }} — {{ p.gameDateEt }}</h2>
+      <h2 id="pred-{{ p.id }}-heading">{{ p.gameLabel }}, {{ p.gameDateEt }}</h2>
       <p><strong>Pick:</strong> {{ p.pickLine }}. <strong>Line at prediction:</strong> {{ p.lineAtPrediction }}</p>
       <p><strong>Result:</strong> {{ p.resultLine }}</p>
       <p><strong>Your reasoning:</strong> {{ p.reasoning }}</p>

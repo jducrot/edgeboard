@@ -236,6 +236,17 @@ a {
   font-size: 1.125rem;
 }
 
+/* Finished games: the whole score line is regular weight and the winner is
+   bold, which survives Windows High Contrast mode (a colored highlight
+   would not). */
+.card h2.final-score {
+  font-weight: 400;
+}
+
+.card h2.final-score strong {
+  font-weight: 700;
+}
+
 .card h3 {
   font-size: 1rem;
   margin: 1rem 0 0.25rem;

@@ -75,7 +75,7 @@ async function generateAutoRetro(p) {
     marginNote = ` (final margin ${winMargin} against your ${p.predicted_margin})`;
   }
   items.push(
-    `Your pick: ${p.pick_team} at ${p.confidence}/5 confidence — ${youRight ? "correct" : "wrong"}${marginNote}`,
+    `Your pick: ${p.pick_team} at ${p.confidence}/5 confidence, ${youRight ? "correct" : "wrong"}${marginNote}`,
   );
 
   // Compare your read with the market's.
@@ -86,13 +86,13 @@ async function generateAutoRetro(p) {
     // side won. The favorite won when it matches the winner.
     const favoriteWon = youRight ? fav === p.pick_team : fav !== p.pick_team;
     if (youRight && !favoriteWon) {
-      items.push(`Market: had ${fav} -${m[2]} and missed — your read beat the line`);
+      items.push(`Market: had ${fav} -${m[2]} and missed, so your read beat the line`);
     } else if (youRight && favoriteWon) {
-      items.push(`Market: agreed with you (${fav} -${m[2]}) — no edge proven either way`);
+      items.push(`Market: agreed with you (${fav} -${m[2]}), so no edge proven either way`);
     } else if (!youRight && favoriteWon) {
-      items.push(`Market: had ${fav} -${m[2]} and was right — your read went against it and lost`);
+      items.push(`Market: had ${fav} -${m[2]} and was right, and your read went against it`);
     } else {
-      items.push(`Market: ${fav} -${m[2]} missed this one too — nobody saw it`);
+      items.push(`Market: ${fav} -${m[2]} missed this one too, so nobody saw it coming`);
     }
   }
 
@@ -109,7 +109,7 @@ async function generateAutoRetro(p) {
 
 // Bump when the generated content gets smarter or changes shape, so
 // existing retrospectives regenerate once.
-const RETRO_GEN = 3;
+const RETRO_GEN = 4;
 
 /** Stored retrospectives are JSON arrays; older rows may hold plain text. */
 function parseRetroItems(stored) {
@@ -153,7 +153,7 @@ export default async function () {
       graded,
       resultLine: !graded
         ? "Awaiting result"
-        : `${p.pick_correct ? "Correct" : "Incorrect"} — final ${p.final_away_score}–${p.final_home_score}`,
+        : `${p.pick_correct ? "Correct" : "Incorrect"}, final ${p.final_away_score}–${p.final_home_score}`,
       snapshot: snapshotSummary(p.snapshot_json),
       autoRetroItems: parseRetroItems(p.auto_retro),
       retroNotes: p.retro_notes ?? "",
