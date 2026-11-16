@@ -114,7 +114,8 @@ test("finished games: one heading with both scores, the winner bold and named in
         bold: [...h.querySelectorAll("strong")].map((s) => ({
           text: s.textContent,
           weight: getComputedStyle(s).fontWeight,
-          background: getComputedStyle(s).backgroundColor,
+          color: getComputedStyle(s).color,
+          size: parseFloat(getComputedStyle(s).fontSize),
         })),
         weight: getComputedStyle(h).fontWeight,
         next: h.nextElementSibling?.textContent ?? "",
@@ -130,7 +131,9 @@ test("finished games: one heading with both scores, the winner bold and named in
       assert.equal(h.bold[0].text, `${winner} (winner)`, "the bold side is the higher score and says so in words");
       assert.equal(h.weight, "400", "the rest of the heading is regular weight");
       assert.equal(h.bold[0].weight, "700", "the winner is bold");
-      assert.equal(h.bold[0].background, "rgb(234, 88, 12)", "the winner is highlighted in orange");
+      assert.equal(h.bold[0].color, "rgb(234, 88, 12)", "the winner is orange");
+      // The orange passes only as large text (3:1): bold at 18.66px or more.
+      assert.ok(h.bold[0].size >= 18.67, `the winner is large text (${h.bold[0].size}px)`);
       assert.doesNotMatch(h.next, /^Final —/, "the score is not repeated on a second line");
     }
   }

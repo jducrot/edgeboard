@@ -237,32 +237,39 @@ a {
 }
 
 /* Finished games: the whole score line is regular weight and the winner is
-   bold on an orange highlight. One orange works in both schemes: dark text
-   on it is 4.98:1, and the highlight itself is 3.56:1 against a light card
-   and 4.98:1 against a dark one. Windows High Contrast mode removes the
-   fill, so the winner keeps its bold weight and gets an outline there. */
+   bold orange text.
+   The size matters. At 20px bold the winner is "large text" under WCAG
+   (bold from 18.66px, which is 14pt), so it needs 3:1 instead of 4.5:1.
+   Light: #ea580c on the white card is 3.56:1, the brightest orange that
+   passes. Brighter #f97316 is only 2.80:1 there, so it fails at any size.
+   Dark: #f97316 on the dark card is 6.32:1.
+   Do not shrink this heading below 18.66px without darkening the orange.
+   Windows High Contrast mode replaces the color, so the winner keeps its
+   bold weight and gets an outline there. */
 :root {
-  --winner-bg: #ea580c;
-  --winner-text: #18181b;
+  --winner: #ea580c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --winner: #f97316;
+  }
 }
 
 .card h2.final-score {
+  font-size: 1.25rem;
   font-weight: 400;
 }
 
 .card h2.final-score strong {
   font-weight: 700;
-  color: var(--winner-text);
-  background: var(--winner-bg);
-  padding: 0 0.3em;
-  border-radius: 4px;
-  -webkit-box-decoration-break: clone;
-  box-decoration-break: clone;
+  color: var(--winner);
 }
 
 @media (forced-colors: active) {
   .card h2.final-score strong {
     outline: 2px solid CanvasText;
+    outline-offset: 2px;
   }
 }
 

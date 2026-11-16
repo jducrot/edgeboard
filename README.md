@@ -72,7 +72,7 @@ Every game that has not started shows:
 
 Every finished game shows the final score in its heading, for example
 "Dallas Mavericks 117 at Cleveland Cavaliers 127", with the winner in bold
-on an orange highlight and named as the winner for screen readers. If you
+orange and named as the winner for screen readers. If you
 picked the game, a check mark or an X next to "Your pick" shows whether
 your team won. Overtime games add a
 "Final/OT" line. Each finished game also shows **How it happened** (the
@@ -289,8 +289,8 @@ data, so your real picks are never touched. They cover:
   since your pick.
 - WCAG 2.2 A and AA with axe in light and dark schemes, and reflow at
   320px.
-- Finished games: both scores in the heading, the winner bold, orange,
-  and named in words, and a check or an X beside your picks on the cards
+- Finished games: both scores in the heading, the winner in bold orange
+  large enough to pass contrast, named in words, and a check or an X beside your picks on the cards
   and the Review page.
 - Saving picks: a double-click saves one pick, a pick still saves when
   part of ESPN is down, and picks close at the scheduled start.
@@ -358,10 +358,12 @@ Things to preserve when editing:
   heading.
 - Stat comparisons are real tables with row and column headers.
 - Every signal is conveyed in words, never by color or weight alone. The
-  winner of a finished game is bold on an orange highlight and also named
-  as the winner in text. The orange is #ea580c in both schemes: dark text
-  on it is 4.98:1, and the highlight is at least 3.56:1 against the card.
-  In Windows High Contrast mode it becomes an outline.
+  winner of a finished game is bold orange text and also named as the
+  winner in text. The heading is 20px, so the bold winner counts as large
+  text and needs 3:1: #ea580c is 3.56:1 on the light card and #f97316 is
+  6.32:1 on the dark one. Do not shrink that heading below 18.66px without
+  darkening the orange. In Windows High Contrast mode the winner gets an
+  outline.
 - A check or an X beside a graded pick is a shape, not a color, and
   screen readers hear "Correct" or "Incorrect".
 - After saving a pick, the page returns to the pick summary on the same
