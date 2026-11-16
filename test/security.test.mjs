@@ -129,3 +129,29 @@ test("the wordmark is exact on every page", async () => {
     assert.deepEqual(wordmarkViolations(body), [], p);
   }
 });
+
+test("only page and style files are served, never Windows device names", async () => {
+  // Files that should never be handed out, placed where pages live.
+  await fs.writeFile(path.join(sandbox.out, "secret.json"), '{"leak": true}');
+  await fs.writeFile(path.join(sandbox.out, "nul.html"), "<p>device name</p>");
+  await fs.mkdir(path.join(sandbox.out, "aux"), { recursive: true });
+  await fs.writeFile(path.join(sandbox.out, "aux", "index.html"), "<p>device folder</p>");
+  for (const p of ["/secret.json", "/nul.html", "/NUL.html", "/aux/", "/CON", "/com1.css"]) {
+    const res = await request(server, p);
+    assert.equal(res.status, 404, `${p} must not be served`);
+  }
+  assert.equal((await request(server, "/styles.css")).status, 200, "the stylesheet still loads");
+});
+
+test("the Refresh button can only send you back to a page on EdgeBoard", async () => {
+  const res = await request(server, "/refresh", {
+    method: "POST",
+    headers: {
+      "sec-fetch-site": "same-origin",
+      "content-type": "application/x-www-form-urlencoded",
+      referer: `http://localhost:${server.port}//evil.example/`,
+    },
+  });
+  assert.equal(res.status, 303);
+  assert.equal(res.headers.location, "/", "a // path would leave the site");
+});

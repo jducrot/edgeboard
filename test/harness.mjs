@@ -46,10 +46,11 @@ async function waitFor(check, timeoutMs, describe) {
 
 /**
  * Start the app on a free port against a sandbox. `offline` makes every
- * network request fail. Started from the system temp folder on purpose:
+ * network request fail, `failUrls` (a pattern) fails only those, and
+ * `slowUrls` makes those answer 2 seconds late. Started from the system temp folder on purpose:
  * the app must work no matter which folder it is started from.
  */
-export async function startServer(sandbox, { offline = false } = {}) {
+export async function startServer(sandbox, { offline = false, failUrls = null, slowUrls = null } = {}) {
   const port = await freePort();
   const env = {
     ...process.env,
@@ -59,7 +60,9 @@ export async function startServer(sandbox, { offline = false } = {}) {
     EDGEBOARD_NO_HISTORY_SYNC: "1",
   };
   if (sandbox.cache) env.EDGEBOARD_CACHE_DIR = sandbox.cache;
-  if (offline) {
+  if (failUrls) env.EDGEBOARD_TEST_FAIL_URLS = failUrls;
+  if (slowUrls) env.EDGEBOARD_TEST_SLOW_URLS = slowUrls;
+  if (offline || failUrls || slowUrls) {
     const preload = pathToFileURL(path.join(ROOT, "test", "offline-preload.mjs")).href;
     env.NODE_OPTIONS = `${env.NODE_OPTIONS ?? ""} --import=${preload}`.trim();
   }

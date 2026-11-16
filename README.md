@@ -67,7 +67,8 @@ Every game that has not started shows:
   button. Until tip-off you can update the pick there, and a "Changed since
   your pick" list shows what moved: the line, win probability, injuries,
   the projected lineup, and games played in between. Changed items are
-  also marked in place, in words.
+  also marked in place, in words. Picks close at the game's scheduled
+  start time, and a double-click saves only one pick.
 
 Every finished game shows the final score in its heading, for example
 "Dallas Mavericks 117 at Cleveland Cavaliers 127", with the winner in bold
@@ -76,10 +77,12 @@ and named as the winner for screen readers. Overtime games add a
 turning point, the box-score factors that decided it, and key
 performances) and **Was it predictable?**, which lists the signals that
 pointed each way before the game. This text is computed from the box score
-and the pregame line, and says so.
+and the pregame line, and says so. A postponed or canceled game shows
+ESPN's status (for example "Postponed") and is never treated as played.
 
 **Review** (`/review/`): every prediction with its result. Finished games
-are graded automatically, and each graded pick gets a computed
+are graded automatically (a pick on a postponed game says "Not graded"
+instead), and each graded pick gets a computed
 retrospective as a bulleted list, plus a box for your own notes. Each pick
 keeps its frozen snapshot, viewable inline. A link downloads every pick as
 a spreadsheet.
@@ -180,7 +183,7 @@ sooner, run `Remove-Item Env:NAME`.
 
 ### Once it is running
 
-Open http://localhost:3000. The pages build on first start (about 6
+Open http://localhost:3000. The pages build on first start (about 10
 seconds with an empty cache, about 1 second after that). Then they rebuild
 when you load a page more than 5 minutes after the last build, after every
 saved pick or note, and when you press "Refresh data now" in the footer.
@@ -266,8 +269,8 @@ Then:
 npm test
 ```
 
-The 25 tests take about 30 seconds and run against throwaway copies of
-the data, so your real picks are never touched. They cover:
+The tests take about a minute and run against throwaway copies of the
+data, so your real picks are never touched. They cover:
 
 - Security: only this computer can connect, forged forms and foreign
   addresses are refused, safety headers are sent, and typed text is never
@@ -278,8 +281,14 @@ the data, so your real picks are never touched. They cover:
   320px.
 - Finished-game headings: both scores, and the winner bold and named in
   words.
+- Saving picks: a double-click saves one pick, a pick still saves when
+  part of ESPN is down, and picks close at the scheduled start.
 - Offline behavior, for a brand-new copy and for a restart.
 - Startup problems: old Node, a second copy, and a mistyped port.
+- ESPN data: postponed games are never treated as played, one odd entry
+  cannot break a day, and slate dates survive daylight-saving changes.
+- Lineups: a box score that failed to load is not counted as a missed
+  game, and a lineup built from failed downloads is not reused.
 - Backups, the spreadsheet export, old slate pages being removed, saves
   made during a refresh, and the wordmark.
 
@@ -295,7 +304,9 @@ EdgeBoard is built for one person on one computer, and defends that:
   Wi-Fi cannot see or change your picks, and Mac and Windows do not ask to
   allow incoming connections. To deliberately open it to your network,
   set `HOST=0.0.0.0` and list the addresses you will use in
-  `EDGEBOARD_ALLOWED_HOSTS` (for example `192.168.1.20:3000`).
+  `EDGEBOARD_ALLOWED_HOSTS` (for example `192.168.1.20:3000`). There is
+  no password, so anyone on your network could then read and change your
+  picks. Only do this on a network you trust.
 - **Only its own pages can change data.** Form submissions are accepted
   only when the browser marks them as coming from EdgeBoard itself
   (`Sec-Fetch-Site`, or a matching `Origin` or `Referer`), so another
@@ -303,6 +314,9 @@ EdgeBoard is built for one person on one computer, and defends that:
 - **Only requests addressed to it are answered.** Any other `Host` is
   refused, which stops websites from reading it through a hostname trick
   (DNS rebinding).
+- **Only page and style files are served**, and Windows device names
+  such as `CON` or `NUL.html` are refused, because opening one can hang
+  a Windows computer.
 - **Browsers are told to run no scripts at all**, never to show it inside
   another site's frame, and not to guess file types. EdgeBoard uses no
   JavaScript in its pages, so this costs nothing and turns any future
@@ -337,4 +351,6 @@ Things to preserve when editing:
 - After saving a pick, the page returns to the pick summary on the same
   card. Invalid input gets a page that explains the problem and links
   back.
-- Buttons, form controls, and navigation links are at least 44px tall.
+- Every target meets WCAG 2.5.8 Target Size (Minimum). Buttons, date
+  links, and navigation links are 44px tall, and each radio button sits
+  in a 44px-tall label that can be clicked anywhere.

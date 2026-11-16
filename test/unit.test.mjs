@@ -116,3 +116,168 @@ test("backups: one per day, newest 14 kept, and each copy is readable", async ()
   copy.close();
   assert.equal(n, getDb().prepare("SELECT COUNT(*) AS n FROM predictions").get().n);
 });
+
+/* ---------------------- games that were never played --------------------- */
+
+const { parseScoreboard, slateDateEt } = await import("../lib/espn.mjs");
+
+// Shapes copied from ESPN's real scoreboard, trimmed to the fields read.
+const espnEvent = ({ id, state, completed, name, detail, homeScore, awayScore }) => ({
+  id,
+  date: "2025-01-10T03:30Z",
+  name: "Charlotte Hornets at Los Angeles Lakers",
+  shortName: "CHA @ LAL",
+  status: { type: { state, completed, name, detail } },
+  competitions: [
+    {
+      competitors: [
+        { homeAway: "home", score: homeScore, team: { id: "13", abbreviation: "LAL", displayName: "Los Angeles Lakers" } },
+        { homeAway: "away", score: awayScore, team: { id: "30", abbreviation: "CHA", displayName: "Charlotte Hornets" } },
+      ],
+    },
+  ],
+});
+
+test("a postponed game is never treated as played, and one odd event cannot break a day", () => {
+  const games = parseScoreboard({
+    events: [
+      // ESPN reports a postponed game as over, 0-0, with completed false.
+      espnEvent({ id: "1", state: "post", completed: false, name: "STATUS_POSTPONED", detail: "Postponed", homeScore: "0", awayScore: "0" }),
+      espnEvent({ id: "2", state: "post", completed: true, name: "STATUS_FINAL", detail: "Final", homeScore: "112", awayScore: "104" }),
+      { id: "3", status: { type: { state: "pre" } }, competitions: [{ competitors: [] }] },
+      espnEvent({ id: "4", state: "pre", completed: false, name: "STATUS_SCHEDULED", detail: "7:30 PM", homeScore: "", awayScore: "" }),
+    ],
+  });
+  assert.deepEqual(games.map((g) => g.id), ["1", "2", "4"], "the event without teams is skipped, the rest kept");
+  const [postponed, final, upcoming] = games;
+  assert.equal(postponed.statusState, "off");
+  assert.equal(postponed.statusDetail, "Postponed");
+  assert.equal(final.statusState, "post");
+  assert.deepEqual([final.home.score, final.away.score], [112, 104]);
+  assert.equal(upcoming.statusState, "pre");
+  assert.deepEqual([upcoming.home.score, upcoming.away.score], [null, null], "an empty score is unknown, not 0");
+});
+
+test("lineup history drops postponed games stored as 0-0 by older versions", async () => {
+  const Database = (await import("better-sqlite3")).default;
+  const file = path.join(tmp, "history.db");
+  const old = new Database(file);
+  old.exec(`CREATE TABLE games (event_id TEXT PRIMARY KEY, season INTEGER NOT NULL, season_type INTEGER NOT NULL,
+    date_utc TEXT NOT NULL, home_id TEXT NOT NULL, away_id TEXT NOT NULL, home_score INTEGER, away_score INTEGER,
+    home_line REAL, lineups_done INTEGER NOT NULL DEFAULT 0)`);
+  const ins = old.prepare("INSERT INTO games VALUES (?, 2026, 2, '2026-01-09T01:00Z', '4', '14', ?, ?, NULL, ?)");
+  ins.run("postponed", 0, 0, -1);
+  ins.run("real", 110, 99, 1);
+  old.close();
+  const { historyDb } = await import("../lib/history.mjs");
+  const ids = historyDb().prepare("SELECT event_id FROM games ORDER BY event_id").all().map((r) => r.event_id);
+  assert.deepEqual(ids, ["real"]);
+});
+
+/* ----------------------------- slate dates ------------------------------ */
+
+test("slate dates move by calendar days, even across daylight-saving changes", () => {
+  const cases = [
+    // 11:30 PM Saturday before clocks spring forward (Sunday March 14, 2027).
+    ["2027-03-14T04:30:00Z", { "-1": "20270312", 0: "20270313", 1: "20270314" }],
+    // 12:30 AM Monday right after it.
+    ["2027-03-15T04:30:00Z", { "-1": "20270314", 0: "20270315", 1: "20270316" }],
+    // 11:30 PM Saturday before clocks fall back (Sunday November 7, 2027).
+    ["2027-11-07T03:30:00Z", { "-1": "20271105", 0: "20271106", 1: "20271107" }],
+    // 12:30 AM Monday right after it.
+    ["2027-11-08T05:30:00Z", { "-1": "20271107", 0: "20271108", 1: "20271109" }],
+    // An ordinary evening: 9 PM Eastern is already the next day in UTC.
+    ["2026-11-16T02:00:00Z", { "-1": "20261114", 0: "20261115", 1: "20261116" }],
+  ];
+  for (const [at, expected] of cases) {
+    for (const [offset, ymd] of Object.entries(expected)) {
+      assert.equal(slateDateEt(Number(offset), Date.parse(at)), ymd, `${at} with offset ${offset}`);
+    }
+  }
+});
+
+test("picks close at the scheduled start, even before ESPN says the game is live", async () => {
+  const { picksOpen } = await import("../lib/espn.mjs");
+  const start = Date.parse("2026-11-16T00:30:00Z");
+  const game = { statusState: "pre", dateUtc: "2026-11-16T00:30Z" };
+  assert.equal(picksOpen(game, start - 60_000), true, "a minute before the start");
+  assert.equal(picksOpen(game, start), false, "at the scheduled start");
+  assert.equal(picksOpen(game, start + 60_000), false, "a minute after, while the cached status still says pre");
+  assert.equal(picksOpen({ ...game, statusState: "in" }, start - 60_000), false, "already live");
+  assert.equal(picksOpen({ ...game, statusState: "off" }, start - 60_000), false, "postponed");
+});
+
+test("a month of lineup history is final only once it ended a few days ago", async () => {
+  const { monthIsFinal } = await import("../lib/history.mjs");
+  // 8 PM Eastern on November 30 is already December 1 in UTC.
+  assert.equal(monthIsFinal("202611", new Date("2026-12-01T01:00:00Z")), false, "games still being played");
+  assert.equal(monthIsFinal("202611", new Date("2026-12-03T23:00:00Z")), false);
+  assert.equal(monthIsFinal("202611", new Date("2026-12-04T00:00:00Z")), true);
+  assert.equal(monthIsFinal("202612", new Date("2027-01-04T00:00:00Z")), true, "December rolls into the next year");
+  assert.equal(monthIsFinal("202612", new Date("2026-12-20T00:00:00Z")), false, "the current month");
+});
+
+test("lineups: a box score that failed to load is not counted as a missed game", async () => {
+  const { rankPlayers } = await import("../lib/starters.mjs");
+  const box = (starter) => ({
+    boxscore: {
+      players: [
+        {
+          team: { id: "1" },
+          statistics: [
+            {
+              names: ["MIN", "PTS"],
+              athletes: [{ athlete: { id: "9", displayName: "Test Player", position: { abbreviation: "G" } }, starter, stats: ["34", "20"] }],
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const games = [1, 2, 3].map((i) => ({ eventId: String(i), dateUtc: `2026-11-1${i}T00:00Z` }));
+  // The most recent game's box score failed (null); he played the two before.
+  const [p] = rankPlayers([null, box(true), box(true)], games, "1", null);
+  assert.equal(p.name, "Test Player");
+  assert.equal(p.missedRecent, 0, "unknown is not the same as missed");
+});
+
+test("lineups: one built around a failed download is not reused", async () => {
+  const { teamStarters } = await import("../lib/starters.mjs");
+  let summaryCalls = 0;
+  let failNext = true;
+  const espn = {
+    getTeamCompletedGames: async () => [1, 2].map((i) => ({ eventId: `m${i}`, dateUtc: `2026-11-1${i}T00:00Z` })),
+    getTeamRosterIds: async () => new Set(["9"]),
+    getAthleteGamelog: async () => null,
+    getGameSummary: async () => {
+      summaryCalls++;
+      if (failNext) throw new Error("simulated download failure");
+      return { boxscore: { players: [] } };
+    },
+  };
+  await teamStarters("memo-test", espn);
+  const afterFirst = summaryCalls;
+  failNext = false;
+  await teamStarters("memo-test", espn);
+  assert.ok(summaryCalls > afterFirst, "the second call downloads again instead of reusing the failed result");
+  const afterSecond = summaryCalls;
+  await teamStarters("memo-test", espn);
+  assert.equal(summaryCalls, afterSecond, "a complete result is reused");
+});
+
+test("odd ESPN ids never reach a download address", async () => {
+  const { getAthleteGamelog, getOdds } = await import("../lib/espn.mjs");
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    throw new Error("no network in this test");
+  };
+  try {
+    await assert.rejects(getAthleteGamelog("../../teams/1"), /Not an ESPN athlete id/);
+    assert.equal(await getOdds("1/../../x"), null);
+    assert.equal(calls, 0, "nothing was downloaded");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

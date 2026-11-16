@@ -10,9 +10,14 @@ import {
   saveAutoRetro,
 } from "../../lib/db.mjs";
 
+/**
+ * Grade picks on games played to the end. Returns pick id -> status for
+ * picks whose game was postponed or canceled, which are never graded.
+ */
 async function reconcilePending() {
+  const notPlayed = new Map();
   const pending = listUnreconciled();
-  if (pending.length === 0) return;
+  if (pending.length === 0) return notPlayed;
   const dates = [...new Set(pending.map((p) => p.game_date_et.replaceAll("-", "")))];
   for (const d of dates) {
     let games;
@@ -23,6 +28,7 @@ async function reconcilePending() {
     }
     for (const p of pending.filter((x) => x.game_date_et.replaceAll("-", "") === d)) {
       const g = games.find((x) => x.id === p.game_id);
+      if (g?.statusState === "off") notPlayed.set(p.id, g.statusDetail || "Postponed");
       if (!g || g.statusState !== "post") continue;
       if (g.home.score === null || g.away.score === null) continue;
       const homeWon = g.home.score > g.away.score;
@@ -30,6 +36,7 @@ async function reconcilePending() {
       reconcilePrediction(p.id, g.home.score, g.away.score, correct);
     }
   }
+  return notPlayed;
 }
 
 function snapshotSummary(json) {
@@ -123,7 +130,7 @@ function parseRetroItems(stored) {
 }
 
 export default async function () {
-  await reconcilePending();
+  const notPlayed = await reconcilePending();
   const rows = listPredictions();
 
   for (const p of rows) {
@@ -152,7 +159,9 @@ export default async function () {
       reasoning: p.reasoning,
       graded,
       resultLine: !graded
-        ? "Awaiting result"
+        ? notPlayed.has(p.id)
+          ? `Not graded: the game was ${notPlayed.get(p.id).toLowerCase()}`
+          : "Awaiting result"
         : `${p.pick_correct ? "Correct" : "Incorrect"}, final ${p.final_away_score}–${p.final_home_score}`,
       snapshot: snapshotSummary(p.snapshot_json),
       autoRetroItems: parseRetroItems(p.auto_retro),

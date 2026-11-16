@@ -15,6 +15,7 @@ import {
   getRestByTeamId,
   getScoreboard,
   getTeamFormByTeamId,
+  picksOpen,
   pruneCache,
   slateDateEt,
   toEtDateString,
@@ -322,7 +323,10 @@ const SECURITY_HEADERS = {
 function backPath(req) {
   try {
     const ref = new URL(req.headers.referer ?? "");
-    if (ref.host === req.headers.host) return ref.pathname;
+    // A path starting with // would send the browser to another site.
+    if (ref.host === req.headers.host && ref.pathname.startsWith("/") && !ref.pathname.startsWith("//")) {
+      return ref.pathname;
+    }
   } catch {
     // Missing or malformed header.
   }
@@ -438,8 +442,8 @@ async function pickableGame(gameId, slateDate) {
   const games = await getScoreboard(slateDate);
   const game = games.find((g) => g.id === gameId);
   if (!game) return { error: "Could not find that game on the slate." };
-  if (game.statusState !== "pre") {
-    return { error: "This game has already started. Picks lock at tip-off." };
+  if (!picksOpen(game)) {
+    return { error: "This game has started, or its scheduled start time has passed. Picks close at the scheduled start." };
   }
   return { game };
 }
@@ -452,10 +456,12 @@ async function pickableGame(gameId, slateDate) {
 async function buildSnapshot(game, slateDate) {
   const [odds, form_, injuries, rest, homeStats10, awayStats10, homeTs, awayTs] =
     await Promise.all([
-      getOdds(game.id),
-      getTeamFormByTeamId(),
-      getInjuriesByTeamId(),
-      getRestByTeamId(slateDate),
+      // Each lookup is enrichment: if one fails, the pick still saves and
+      // the snapshot records that piece as unknown.
+      getOdds(game.id).catch(() => null),
+      getTeamFormByTeamId().catch(() => new Map()),
+      getInjuriesByTeamId().catch(() => new Map()),
+      getRestByTeamId(slateDate).catch(() => new Map()),
       teamAnalytics(game.home.id).catch(() => null),
       teamAnalytics(game.away.id).catch(() => null),
       teamStarters(game.home.id).catch(() => null),
@@ -495,13 +501,27 @@ async function handlePredict(form, res) {
   if (error) return fail(error);
   const { gameId, slateDate, pick } = values;
 
-  if (listPredictionsForGame(gameId).length > 0) {
+  // A pick already saved for this game. The same pick sent twice (a double
+  // click) just returns to the card; a different one is refused.
+  const existingPick = () => listPredictionsForGame(gameId)[0] ?? null;
+  const answerExisting = async (existing) => {
+    if (existing.pick === pick && existing.reasoning === values.reasoning) {
+      await rebuildAfterChange().catch(logRefreshFailure);
+      return redirect(res, cardHref(slateDate, gameId));
+    }
     return fail("You already have a pick for this game. Open View game details on its card to update it.");
-  }
+  };
+  const before = existingPick();
+  if (before) return answerExisting(before);
   const { game, error: gameError } = await pickableGame(gameId, slateDate);
   if (gameError) return fail(gameError);
 
   const snapshot = await buildSnapshot(game, slateDate);
+  // Check again: another request for this game may have saved while this
+  // one waited on ESPN. The check and the insert below are synchronous and
+  // back to back, so no other request can run between them.
+  const raced = existingPick();
+  if (raced) return answerExisting(raced);
   insertPrediction({
     gameId,
     gameDateEt: toEtDateString(game.dateUtc),
@@ -572,9 +592,17 @@ async function handleRetro(form, res) {
 
 /* ----------------------------- static serving ---------------------------- */
 
+// On Windows, names like CON or NUL.html open a device instead of a file,
+// and reading one can hang the server.
+const WINDOWS_DEVICE = /^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i;
+
 async function serveStatic(reqPath, res) {
   let rel = decodeURIComponent(reqPath);
   if (rel.endsWith("/")) rel += "index.html";
+  // Serve only the kinds of files the site is made of.
+  if (!MIME[path.extname(rel).toLowerCase()] || rel.split("/").some((s) => WINDOWS_DEVICE.test(s))) {
+    return sendError(res, 404, "Not found", "That page does not exist.");
+  }
   const file = path.resolve(OUT, "." + rel);
   if (!file.startsWith(OUT + path.sep) && file !== OUT) {
     return sendError(res, 404, "Not found", "That page does not exist.");
@@ -657,9 +685,7 @@ async function handleRequest(req, res) {
       if (url.pathname === "/predict/update") return await handleUpdate(form, res);
       if (url.pathname === "/retro") return await handleRetro(form, res);
       if (url.pathname === "/refresh") {
-        await rebuildAfterChange().catch((e) =>
-          console.error("Refresh failed; showing the last pages built:", e.message ?? e),
-        );
+        await rebuildAfterChange().catch(logRefreshFailure);
         return redirect(res, backPath(req));
       }
       return sendError(res, 404, "Not found", "That action does not exist.");
@@ -718,6 +744,7 @@ if (HOST === "127.0.0.1") {
   console.log("Only this computer can reach it.");
 } else {
   console.log(`Listening on ${HOST}: other devices on your network may reach it.`);
+  console.log("There is no password, so anyone who can reach it can read and change your picks.");
 }
 const window =
   STALE_AFTER_MS >= 60_000

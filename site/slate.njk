@@ -51,7 +51,7 @@ eleventyComputed:
         <li{% if item.changed %} class="changed"{% endif %}>{{ item.text }}</li>
         {%- endfor %}
       </ul>
-      {% elif not game.isFinal %}
+      {% elif not game.isFinal and not game.notPlayed %}
       <p class="muted">No betting line posted yet.</p>
       {% endif %}
 

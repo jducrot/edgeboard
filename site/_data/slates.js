@@ -8,6 +8,7 @@ import {
   getScoreboard,
   getTeamFormByTeamId,
   labelForYmd,
+  picksOpen,
   slateDateEt,
 } from "../../lib/espn.mjs";
 import { listPredictions } from "../../lib/db.mjs";
@@ -517,7 +518,8 @@ export default async function () {
         }
       }
       // Bookmaker bullets as objects, so a changed one can be marked.
-      const oddsView = oddsLine(odds, g, isFinal, awayStats, homeStats);
+      // A postponed or canceled game's line no longer means anything.
+      const oddsView = g.statusState === "off" ? null : oddsLine(odds, g, isFinal, awayStats, homeStats);
       if (oddsView) oddsView.items = oddsView.items.map((text) => ({ text, changed: false }));
 
       // Your pick, and what changed since you made it (pregame only).
@@ -554,10 +556,11 @@ export default async function () {
       return {
         recap,
         isFinal,
+        notPlayed: g.statusState === "off",
         myPick: myRow ? pickView(myRow, g) : null,
         changes,
         collapseDetails: Boolean(myRow) && !isFinal,
-        canEdit: Boolean(myRow) && g.statusState === "pre",
+        canEdit: Boolean(myRow) && picksOpen(g),
         knowable: isFinal
           ? knowableSignals(
               g,
@@ -602,7 +605,7 @@ export default async function () {
         homeStarters: homeStartersList,
         awayUnaccounted,
         homeUnaccounted,
-        canPredict: g.statusState === "pre" && !myRow,
+        canPredict: picksOpen(g) && !myRow,
       };
   };
 
