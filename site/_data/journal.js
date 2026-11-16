@@ -167,6 +167,7 @@ export default async function () {
       snapshot: snapshotSummary(p.snapshot_json),
       autoRetroItems: parseRetroItems(p.auto_retro),
       retroNotes: p.retro_notes ?? "",
+      syncNote: p.sync_note ?? null,
       canAddNotes: graded && !p.retro_notes,
     };
   });

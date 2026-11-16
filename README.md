@@ -280,6 +280,51 @@ be told to use the proxy:
 NODE_USE_ENV_PROXY=1 NODE_EXTRA_CA_CERTS=/root/.ccr/ca-bundle.crt npm run dev
 ```
 
+## Using EdgeBoard on two computers
+
+Your picks can follow you between computers through a private GitHub
+repository of your own (for example `edgeboard-picks`). The live database
+is never shared. Each pick is also kept as one small file in a copy of that
+repository at `data/sync`. Every time EdgeBoard refreshes, it pulls picks
+from your other computer, adds them, writes out any picks saved or changed
+here, and pushes them. Results are not synced: each computer grades picks
+from ESPN by itself, so a pick made on the Mac shows up graded on the PC.
+
+**Set up each computer once,** starting with the one that already has your
+picks. In the `edgeboard` folder:
+
+```bash
+git clone https://github.com/jducrot/edgeboard-picks.git data/sync
+```
+
+Then restart EdgeBoard. On the first refresh it gives every existing pick
+a permanent id and pushes them all.
+
+The clone asks you to sign in to GitHub the first time. On Windows, Git for
+Windows opens a browser sign-in. On a Mac, install Git Credential Manager
+first so it can do the same:
+
+```bash
+brew install --cask git-credential-manager
+```
+
+How it behaves:
+
+- **Each pick is its own file,** named by its id, so the two computers
+  almost never edit the same file.
+- **The newest version of a pick wins,** whether the change was an update
+  or added notes.
+- **If both computers picked the same game before syncing,** the pick
+  saved first is kept on both, and the Review page shows a "Sync note"
+  describing the other one. Nothing disappears silently: the other pick's
+  file stays in the repository's history.
+- **Offline is fine.** Picks save locally and go out on the next refresh
+  with internet. If GitHub cannot be reached or needs you to sign in
+  again, the terminal says so once, in plain words.
+- **Without `data/sync`, nothing changes.** Sync is off until you clone.
+- Commits are made as "EdgeBoard", so your email never lands in the
+  history.
+
 ## Backups and export
 
 - **Daily backups.** Each day EdgeBoard first runs, it copies your picks to
@@ -347,6 +392,9 @@ data, so your real picks are never touched. They cover:
   findings name an edge only past the chance bar, box-score totals are
   stored without losing a saved spread, and the page's tables are labelled
   and scroll in a keyboard-reachable box on a phone.
+- Syncing picks: two copies of EdgeBoard share a stand-in repository, a
+  pick saved on one appears on the other, an update flows back, newer
+  edits win, and a game picked on both keeps the earlier pick with a note.
 - Backups, the spreadsheet export, old slate pages being removed, saves
   made during a refresh, and the wordmark.
 

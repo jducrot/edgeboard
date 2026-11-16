@@ -35,6 +35,7 @@ import { createBuildQueue } from "./lib/build-queue.mjs";
 import { backupPicks } from "./lib/backup.mjs";
 import { picksCsv } from "./lib/export.mjs";
 import { CACHE_DIR, DATA_DIR, OUT_DIR, ROOT } from "./lib/paths.mjs";
+import { syncPicks } from "./lib/picksync.mjs";
 
 // Eleventy finds its config and the site folder relative to the current
 // folder, so work from the app's own folder wherever it was started from.
@@ -141,6 +142,11 @@ async function doBuild() {
   }
   // Read by site/_data/meta.js for the footer.
   globalThis.edgeboardStatus = { offline: status.offline, lastOnlineAt: status.lastOnlineAt };
+
+  // Picks from your other computer come in before the pages are built, and
+  // picks saved here go out. Does nothing unless data/sync is set up.
+  const synced = await syncPicks({ online });
+  if (synced?.imported) console.log(`Pick sync: ${synced.imported} ${synced.imported === 1 ? "pick" : "picks"} from your other computer.`);
 
   // Offline, the build still runs: expired cached data is used where it
   // exists, and the page notice says so.

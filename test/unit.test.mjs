@@ -476,3 +476,38 @@ test("installs need no compiler: dependency install scripts stay off", async () 
   assert.deepEqual(skipped, []);
   assert.match(scripts.test, /--import \.\/scripts\/check-node\.mjs/, "npm test still checks the Node version first");
 });
+
+/* ------------------------- syncing picks ------------------------------- */
+
+const { planImport, changedAt } = await import("../lib/picksync.mjs");
+const rec = (uid, gameId, createdAtUtc, extra = {}) => ({
+  uid, gameId, createdAtUtc, pick: "home", pickTeam: "CLE", reasoning: `pick ${uid}`, predictedMargin: null, ...extra,
+});
+
+test("sync: new picks come in, newer edits win, older ones are ignored", () => {
+  const local = [rec("a", "g1", "2026-11-10T20:00:00Z", { updatedAtUtc: "2026-11-10T21:00:00Z" })];
+  const actions = planImport(local, [
+    rec("b", "g2", "2026-11-11T20:00:00Z"),
+    rec("a", "g1", "2026-11-10T20:00:00Z", { updatedAtUtc: "2026-11-10T20:30:00Z" }), // older edit
+  ]);
+  assert.deepEqual(actions.map((a) => a.type), ["insert"]);
+  const newer = planImport(local, [rec("a", "g1", "2026-11-10T20:00:00Z", { retroAtUtc: "2026-11-12T09:00:00Z" })]);
+  assert.deepEqual(newer.map((a) => a.type), ["update"], "notes added later count as a change");
+  assert.equal(changedAt({ createdAtUtc: "1", updatedAtUtc: "3", retroAtUtc: "2" }), "3");
+});
+
+test("sync: when both computers picked the same game, the earlier pick is kept, with a note, on both", () => {
+  const mac = rec("mac", "g1", "2026-11-10T18:00:00Z", { pickTeam: "CLE", reasoning: "Rested" });
+  const pc = rec("pc", "g1", "2026-11-10T19:00:00Z", { pickTeam: "DAL", reasoning: "Healthier" });
+  // On the PC, its own later pick is replaced by the Mac's earlier one.
+  const onPc = planImport([pc], [mac, pc]);
+  assert.deepEqual(onPc.map((a) => a.type), ["replace", "note"]);
+  assert.equal(onPc[0].uid, "pc", "the PC's own pick is the one replaced");
+  assert.equal(onPc[0].record.uid, "mac", "by the Mac's earlier pick");
+  assert.match(onPc[0].note, /also picked on another computer.*DAL because Healthier/);
+  // On the Mac, its own earlier pick stays, with the same kind of note.
+  const onMac = planImport([mac], [mac, pc]);
+  assert.deepEqual(onMac.map((a) => a.type), ["note"]);
+  assert.equal(onMac[0].uid, "mac");
+  assert.match(onMac[0].note, /DAL because Healthier/);
+});
