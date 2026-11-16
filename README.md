@@ -165,7 +165,12 @@ used.
 EdgeBoard needs Node 22 or newer. Any current release from
 [nodejs.org](https://nodejs.org/) works. The database driver includes
 ready-made builds for Mac (Apple silicon and Intel) and Windows (x64 and
-Arm), so no compiler is needed.
+Arm), so no compiler is needed. The project's `.npmrc` turns off
+dependency install scripts (`ignore-scripts=true`): without that, npm tries
+to compile the driver from source on a fresh install, which fails on
+Windows unless Visual Studio is installed. Because that setting also skips
+npm's "pre" scripts, the Node version check lives in the server itself and
+in the `npm test` command.
 
 ### Mac
 
@@ -241,6 +246,12 @@ red error text:
   how to use another port, instead of building over the first copy's
   pages.
 - **`PORT` is mistyped.** EdgeBoard stops and shows the value it got.
+- **`npm install` fails with "node-gyp" or "Visual Studio" errors.** Your
+  copy predates the `.npmrc` fix. Pull the latest code, delete
+  `node_modules` (on Windows: `Remove-Item -Recurse -Force node_modules`),
+  and run `npm install` again. If Windows says a file in `node_modules`
+  cannot be removed, close any editor that has the folder open and try
+  again.
 - **No internet on a brand-new copy.** EdgeBoard keeps running, shows a
   "No data yet" page, and tries again when you load a page.
 - **A refresh fails.** One line explains why, and the last pages built
@@ -361,6 +372,9 @@ EdgeBoard is built for one person on one computer, and defends that:
 - **Only requests addressed to it are answered.** Any other `Host` is
   refused, which stops websites from reading it through a hostname trick
   (DNS rebinding).
+- **Dependencies cannot run code while installing.** `.npmrc` sets
+  `ignore-scripts=true`, so a compromised package update cannot run
+  anything on your computer during `npm install`.
 - **Only page and style files are served**, and Windows device names
   such as `CON` or `NUL.html` are refused, because opening one can hang
   a Windows computer.

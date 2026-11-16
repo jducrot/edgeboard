@@ -1,5 +1,6 @@
-// Runs before `npm run dev`, `npm start`, and `npm test`, and is the first
-// import in server.mjs, so it also guards `node server.mjs`. Uses no
+// The first import in server.mjs, so it guards `npm run dev`, `npm start`,
+// and `node server.mjs`, and preloaded by `npm test`. (npm "pre" scripts
+// cannot be used: .npmrc sets ignore-scripts, which skips them.) Uses no
 // dependencies, so it works even when installed packages do not match.
 // EDGEBOARD_MIN_NODE exists only so the tests can simulate an old Node.
 const MIN_MAJOR = Number(process.env.EDGEBOARD_MIN_NODE) || 22;

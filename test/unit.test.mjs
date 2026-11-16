@@ -463,3 +463,16 @@ test("upsets: the Line check note says which side the stats back", () => {
   assert.match(P.lineCheckNote(study, 8, 5), /^The stats back the favorite here\. In past games like that, the underdog won 28% of 949, against 29% usual/);
   assert.equal(P.lineCheckNote(study, 0, 5), null, "no note for a dead-even stats margin");
 });
+
+test("installs need no compiler: dependency install scripts stay off", async () => {
+  const npmrc = await fs.readFile(new URL("../.npmrc", import.meta.url), "utf8");
+  // Without this, npm compiles the database driver from source on a fresh
+  // install, which fails on Windows unless Visual Studio is installed.
+  assert.match(npmrc, /^ignore-scripts=true$/m);
+  // ignore-scripts also skips "pre" and "post" scripts, so none may exist:
+  // they would silently never run.
+  const { scripts } = JSON.parse(await fs.readFile(new URL("../package.json", import.meta.url), "utf8"));
+  const skipped = Object.keys(scripts).filter((name) => /^(pre|post)/.test(name));
+  assert.deepEqual(skipped, []);
+  assert.match(scripts.test, /--import \.\/scripts\/check-node\.mjs/, "npm test still checks the Node version first");
+});
