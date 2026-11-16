@@ -17,7 +17,8 @@ import { getGameRecap } from "../../lib/recap.mjs";
 import { teamStarters } from "../../lib/starters.mjs";
 import { reconcileStartersAndInjuries } from "../../lib/lineup.mjs";
 import { compareToSnapshot } from "../../lib/changes.mjs";
-import { cohesionIndex, lineupCohesion } from "../../lib/cohesion.mjs";
+import { cohesionIndex, lineupCohesion, cohesionBacktest, cohesionNote } from "../../lib/cohesion.mjs";
+import { predictorStudy, lineCheckNote } from "../../lib/predictors.mjs";
 import { lineCheck } from "../../lib/linecheck.mjs";
 import { teamAnalytics } from "../../lib/teamstats.mjs";
 
@@ -121,7 +122,7 @@ function rankRows(ranks, awayId, homeId) {
 }
 
 /** Cohesion of each team's projected five, as table rows. */
-function cohesionRows(index, g, awayStarters, homeStarters) {
+function cohesionRows(index, g, awayStarters, homeStarters, study) {
   const a = lineupCohesion(index, g.away.id, awayStarters?.map((s) => s.id));
   const h = lineupCohesion(index, g.home.id, homeStarters?.map((s) => s.id));
   if (!a && !h) return null;
@@ -133,6 +134,9 @@ function cohesionRows(index, g, awayStarters, homeStarters) {
       : `${c.fiveAll}`;
   };
   return {
+    note: a && h
+      ? cohesionNote(study, { abbr: g.away.abbreviation, pair: a.pairAvg }, { abbr: g.home.abbreviation, pair: h.pairAvg })
+      : null,
     typicalPair: index.typicalPair !== null ? Math.round(index.typicalPair) : null,
     rows: [
       { label: "This five, starts together", away: five(a), home: five(h) },
@@ -453,11 +457,17 @@ export default async function () {
   // Lineup history may still be downloading on a first run; cards simply
   // omit cohesion until it is there.
   let cohesion = null;
+  let cohesionStudy = null;
+  let study = null;
   try {
     const idx = cohesionIndex();
-    if (idx.gamesCovered > 0) cohesion = idx;
+    if (idx.gamesCovered > 0) {
+      cohesion = idx;
+      cohesionStudy = cohesionBacktest(idx);
+      study = predictorStudy();
+    }
   } catch {
-    cohesion = null;
+    // Research notes are context; cards build without them.
   }
 
   const paValues = [...form.values()]
@@ -578,13 +588,15 @@ export default async function () {
               rest.get(g.away.id) ?? null,
             )
           : null,
-        lineCheck: check ? check.items : null,
+        lineCheck: check
+          ? [...check.items, lineCheckNote(study, check.statsHome, check.marketHome)].filter(Boolean)
+          : null,
         analyticsRows: g.statusState === "pre" ? analyticsRows(awayStats, homeStats) : null,
         rankRows: g.statusState === "pre"
           ? rankRows(leagueRanks, g.away.id, g.home.id)
           : null,
         cohesion: !isFinal && cohesion
-          ? cohesionRows(cohesion, g, awayStartersList, homeStartersList)
+          ? cohesionRows(cohesion, g, awayStartersList, homeStartersList, cohesionStudy)
           : null,
         id: g.id,
         heading: `${g.away.displayName} at ${g.home.displayName}`,

@@ -661,6 +661,32 @@ li.changed {
   padding-bottom: 0.25rem;
 }
 
+/* Research tables scroll sideways inside their own box on narrow screens
+   instead of breaking words and numbers mid-way. WCAG 1.4.10 allows this
+   for data tables. The box is focusable and named by its caption, so
+   keyboard and screen reader users can find and scroll it. */
+.table-scroll {
+  overflow-x: auto;
+  margin-top: 0.75rem;
+}
+
+.table-scroll table {
+  min-width: 36rem;
+  margin-top: 0;
+}
+
+.table-scroll th,
+.table-scroll td {
+  overflow-wrap: normal;
+}
+
+/* Keep the caption readable without scrolling on narrow cards. */
+@container (max-width: 30rem) {
+  .table-scroll caption {
+    max-width: 15rem;
+  }
+}
+
 /* Shown by the server at the top of every page while data cannot refresh. */
 .status-notice {
   background: var(--changed-bg);

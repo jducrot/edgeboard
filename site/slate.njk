@@ -193,6 +193,7 @@ eleventyComputed:
           {%- endfor %}
         </tbody>
       </table>
+      {% if game.cohesion.note %}<p>{{ game.cohesion.note }}</p>{% endif %}
       <p class="muted">Counts cover last season and this one, playoffs included.{% if game.cohesion.typicalPair %} A typical lineup's average pair this season: {{ game.cohesion.typicalPair }}.{% endif %} <a href="/insights/">Has cohesion predicted results?</a></p>
       {% endif %}
 

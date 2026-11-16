@@ -188,6 +188,38 @@ test("finished games you picked: a check for a correct pick, an X for a wrong on
   await page.close();
 });
 
+test("insights: the upset study shows, and every table is labelled", async (t) => {
+  // Skip only when this test copy has no lineup history at all. With
+  // history present, a "still downloading" page means the study broke.
+  const hasHistory = await fs.access(path.join(sandbox.data, "history.db")).then(() => true, () => false);
+  if (!hasHistory) return t.skip("no lineup history on this computer to copy");
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await page.goto(server.base + "/insights/", { waitUntil: "networkidle" });
+  const headings = await page.locator("h2").allTextContents();
+  assert.deepEqual(headings, [
+    "What flags an upset?",
+    "Does the Line check's verdict beat the spread?",
+    "Does cohesion help?",
+    "How often each signal picked the winner",
+  ]);
+  const tables = await page.locator("table").evaluateAll((ts) =>
+    ts.map((t) => ({
+      caption: t.querySelector("caption")?.textContent.trim() ?? "",
+      rows: t.querySelectorAll("tbody tr").length,
+      rowHeaders: t.querySelectorAll('tbody th[scope="row"]').length,
+    })),
+  );
+  assert.ok(tables.length >= 6, `${tables.length} tables`);
+  for (const tb of tables) {
+    assert.ok(tb.caption, "every table has a caption");
+    assert.ok(tb.rows > 0, `"${tb.caption}" has rows`);
+    assert.equal(tb.rowHeaders, tb.rows, `"${tb.caption}" labels every row`);
+  }
+  // The market is reported, never crowned.
+  assert.doesNotMatch(await page.locator("#upsets-heading").locator("..").textContent(), /best (single )?predictor/i);
+  await page.close();
+});
+
 test("slate pages for dates outside the window are removed after a build", async () => {
   const paths = await slatePaths(server);
   assert.ok(paths.length > 0);
@@ -216,6 +248,31 @@ for (const scheme of ["light", "dark"]) {
     assert.deepEqual(problems, [], `\n${problems.join("\n")}`);
   });
 }
+
+test("narrow screens: research tables scroll in a named box the keyboard can reach", async (t) => {
+  const hasHistory = await fs.access(path.join(sandbox.data, "history.db")).then(() => true, () => false);
+  if (!hasHistory) return t.skip("no lineup history on this computer to copy");
+  const context = await browser.newContext({ bypassCSP: true, viewport: { width: 320, height: 640 } });
+  const page = await context.newPage();
+  await page.goto(server.base + "/insights/", { waitUntil: "networkidle" });
+  await page.evaluate(() => document.querySelectorAll("details").forEach((d) => (d.open = true)));
+  const boxes = await page.locator(".table-scroll").evaluateAll((els) =>
+    els.map((el) => ({
+      scrolls: el.scrollWidth > el.clientWidth,
+      role: el.getAttribute("role"),
+      tabindex: el.getAttribute("tabindex"),
+      named: document.getElementById(el.getAttribute("aria-labelledby"))?.tagName,
+    })),
+  );
+  assert.ok(boxes.length >= 6);
+  for (const b of boxes) {
+    assert.deepEqual(b, { scrolls: true, role: "region", tabindex: "0", named: "CAPTION" });
+  }
+  await page.addScriptTag({ path: AXE });
+  const result = await page.evaluate((tags) => axe.run(document, { runOnly: { type: "tag", values: tags } }), WCAG_TAGS);
+  assert.deepEqual(result.violations.map((v) => `${v.id}: ${v.help}`), []);
+  await context.close();
+});
 
 test("reflow: no sideways scrolling at 320px (WCAG 1.4.10)", async () => {
   const page = await browser.newPage({ viewport: { width: 320, height: 640 } });

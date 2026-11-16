@@ -6,14 +6,166 @@ navCurrent: insights
 ---
 <h1>Insights</h1>
 
-<section aria-labelledby="cohesion-heading" class="card insight">
-  <h2 id="cohesion-heading">Does cohesion beat the spread?</h2>
-  {% if insights.cohesion %}
-  <p>Every game from last season and this one, scored by how many games each team's starters had started together <strong>before</strong> that game. The question: does the more cohesive team cover the spread more often than chance?</p>
-  <p><strong>{{ insights.cohesion.verdict }}</strong></p>
-  {% if insights.cohesion.caution %}<p>{{ insights.cohesion.caution }}</p>{% endif %}
+{% if insights.predictors %}
+{% set p = insights.predictors %}
+{% set c = insights.cohesion %}
+<p class="insight-intro">Research from every game in EdgeBoard's history: last season, its playoffs, and this season so far. Each game is judged only on what its card would have shown before tip-off, never on anything that happened later. The numbers update as games finish.</p>
+
+<section aria-labelledby="upsets-heading" class="card insight">
+  <h2 id="upsets-heading">What flags an upset?</h2>
+  <p>An upset here means the team the DraftKings spread made the underdog won outright. These are the games where the market got the winner wrong.</p>
+  <ul class="fact-list">
+    {%- for v in p.verdicts %}
+    <li>{{ v }}</li>
+    {%- endfor %}
+  </ul>
+
+  <h3>How to use this on a game card</h3>
+  <ul class="fact-list">
+    <li><strong>Find the underdog and the spread.</strong> If DraftKings shows "Expected margin: CLE by 3.5", DAL is the underdog, and underdogs at 3.5 points usually win about {{ p.usualAt35 }} of the time. That is the number a signal has to beat.</li>
+    {% if p.record %}<li><strong>Look for stats that back the underdog.</strong> Say the Record row shows DAL with the better record. That is "Better record this season" backing the underdog. Past underdogs in that spot won {{ p.record.won }} of {{ p.record.games }} games, against {{ p.record.usual }} usual at their spreads ({{ p.record.standing | lower }}).</li>{% endif %}
+    <li><strong>Read the Line check.</strong> If its "Stats:" margin names DAL, the stats back the underdog, and past underdogs in that spot won {{ p.lineCheckDog.won }} of {{ p.lineCheckDog.games }}, against {{ p.lineCheckDog.usual }} usual. If it names CLE, the underdog won only {{ p.lineCheckFavorite.won }}. Each Line check now ends with this history.</li>
+    <li><strong>Count the stats backing the underdog.</strong> The second table below shows how often underdogs won depending on how many of the card's {{ p.statCount }} stats backed them. The list of those stats is under "How to read these tables".</li>
+  </ul>
+
+  <div class="table-scroll" role="region" aria-labelledby="t-upsets" tabindex="0">
   <table>
-    <caption>More cohesive team against the spread, by slice</caption>
+    <caption id="t-upsets">When each signal backed the underdog, over {{ p.lineGames }} games with a spread</caption>
+    <thead>
+      <tr>
+        <th scope="col">Signal, and where it is on the card</th>
+        <th scope="col">Times it backed the underdog</th>
+        <th scope="col">Underdog won (usual at those spreads)</th>
+        <th scope="col">Compared with usual</th>
+        <th scope="col">Upsets it backed</th>
+      </tr>
+    </thead>
+    <tbody>
+      {%- for s in p.upsets %}
+      <tr>
+        <th scope="row">{{ s.label }}{% if s.group %} (a group of stats){% endif %}<br><span class="muted">{{ s.where }}</span></th>
+        <td>{{ s.games }}</td>
+        <td>{{ s.won }} ({{ s.usual }})</td>
+        <td>{{ s.standing }}</td>
+        <td>{{ s.caught }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <div class="table-scroll" role="region" aria-labelledby="t-stack" tabindex="0">
+  <table>
+    <caption id="t-stack">How often underdogs won, by how many of the card's {{ p.statCount }} stats backed them</caption>
+    <thead>
+      <tr>
+        <th scope="col">Stats backing the underdog</th>
+        <th scope="col">Games</th>
+        <th scope="col">Underdog won (usual at those spreads)</th>
+        <th scope="col">Compared with usual</th>
+      </tr>
+    </thead>
+    <tbody>
+      {%- for b in p.stack %}
+      <tr>
+        <th scope="row">{{ b.label }}</th>
+        <td>{{ b.games }}</td>
+        <td>{{ b.won }} ({{ b.usual }})</td>
+        <td>{{ b.standing }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <div class="table-scroll" role="region" aria-labelledby="t-spread" tabindex="0">
+  <table>
+    <caption id="t-spread">How often underdogs won, by the size of the spread</caption>
+    <thead>
+      <tr>
+        <th scope="col">Spread</th>
+        <th scope="col">Games</th>
+        <th scope="col">Underdog won</th>
+      </tr>
+    </thead>
+    <tbody>
+      {%- for b in p.bySpread %}
+      <tr>
+        <th scope="row">{{ b.label }}</th>
+        <td>{{ b.games }}</td>
+        <td>{{ b.won }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+
+  <h3>How to read these tables</h3>
+  <ul class="fact-list">
+    <li><strong>Backed the underdog:</strong> the signal favored the team the market made the underdog. For example, the underdog had the better record.</li>
+    <li><strong>Usual at those spreads:</strong> how often underdogs win at the same spreads, whatever the stats say, fitted to these same games. A signal only helps if its underdogs beat that number. Comparing with all underdogs instead would flatter any signal that mostly backs underdogs in close games, where upsets are common anyway.</li>
+    <li><strong>Compared with usual:</strong> "Clearly more than usual" means the gap is too big for chance to explain easily (about a 1 in 40 chance). "More than usual, but could be chance" means the gap is real so far but small enough that luck could produce it. "About the usual rate" means no help.</li>
+    <li><strong>Upsets it backed:</strong> of all {{ p.totalUpsets }} upsets, how many this signal pointed to beforehand.</li>
+    <li><strong>The {{ p.statCount }} stats counted together</strong>, and where each one is on the card:
+      <ul class="fact-list">
+        {%- for s in p.stats %}
+        <li>{{ s.label }}: {{ s.where }}</li>
+        {%- endfor %}
+      </ul>
+    </li>
+    <li><strong>Which games count:</strong> a game is scored once both teams have played 10 games that season, so each season's first few weeks are left out. "Fewer regular starters missing" uses who actually started, which is announced about 30 minutes before tip-off.</li>
+    <li><strong>What this cannot show yet:</strong> whether betting these underdogs would have paid. Underdog wins pay more than even money, but EdgeBoard does not store past moneyline prices.</li>
+  </ul>
+</section>
+
+<section aria-labelledby="linecheck-heading" class="card insight">
+  <h2 id="linecheck-heading">Does the Line check's verdict beat the spread?</h2>
+  <p>Each Line check ends by saying whether the stats agree with the line. Here is how the side the stats leaned toward did against the spread, grouped by that verdict.</p>
+  <p><strong>{{ p.lineCheckVerdict }}</strong></p>
+  <div class="table-scroll" role="region" aria-labelledby="t-linecheck" tabindex="0">
+  <table>
+    <caption id="t-linecheck">The side the Line check's stats leaned toward, against the spread</caption>
+    <thead>
+      <tr>
+        <th scope="col">Verdict on the card</th>
+        <th scope="col">Games</th>
+        <th scope="col">Stats side covered</th>
+        <th scope="col">Likely range (95%)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {%- for b in p.lineCheck %}
+      <tr>
+        <th scope="row">{{ b.label }}</th>
+        <td>{{ b.games }}</td>
+        <td>{{ b.cover }}</td>
+        <td>{{ b.range }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted">Profit at standard -110 odds needs {{ p.breakEven }}%. The stats estimate is rebuilt for each past game with the Line check's own rules: last-10 net ratings scaled for pace, 2.5 points for home court, 2 points for a back-to-back, and 3 points for each regular starter newly out, up to 6. For past games, "newly out" means a regular starter who started the previous game but not this one.</p>
+</section>
+
+<section aria-labelledby="cohesion-heading" class="card insight">
+  <h2 id="cohesion-heading">Does cohesion help?</h2>
+  <h3>What the cohesion numbers mean</h3>
+  <ul class="fact-list">
+    <li><strong>Average pair, starts together</strong> is the second row of the Cohesion table on each card. A starting five has 10 pairs of players. For each pair, EdgeBoard counts the games they started together over last season and this one, then averages the 10 counts. A five that has started together all year scores high, and one new starter pulls the number down. A typical lineup this season scores {{ c.typical }}.</li>
+    <li><strong>The cohesion gap</strong> is the difference between the two teams' average-pair numbers.</li>
+    <li><strong>Large cohesion gap (top third)</strong> means the third of past games where that gap was biggest: more than {{ c.largeCutoff }} starts. A small gap (bottom third) is {{ c.smallCutoff }} starts or fewer, and a medium gap is in between.</li>
+  </ul>
+
+  <h3>An example</h3>
+  <p>A card's Cohesion table shows "Average pair, starts together: DAL {{ c.example.low }}, CLE {{ c.example.high }}". The gap is {{ c.example.gap }}, more than {{ c.largeCutoff }}, so it is a large gap and CLE is the more cohesive team. In past large-gap games, the more cohesive team won {{ c.large.won }} outright and covered the spread {{ c.large.cover }}. When the gap is small, the more cohesive team won only {{ c.small.won }}, so cohesion means little when the two numbers are close.{% if c.underdog %} For upsets: when the more cohesive team was the underdog, it won {{ c.underdog.won }} of {{ c.underdog.games }} games, against {{ c.underdog.usual }} usual at those spreads.{% endif %} Each card's Cohesion table now ends with this context for its own gap.</p>
+
+  <h3>The full results</h3>
+  <p><strong>{{ c.verdict }}</strong></p>
+  {% if c.caution %}<p>{{ c.caution }}</p>{% endif %}
+  <div class="table-scroll" role="region" aria-labelledby="t-cohesion" tabindex="0">
+  <table>
+    <caption id="t-cohesion">The more cohesive team against the spread, by slice</caption>
     <thead>
       <tr>
         <th scope="col">Slice</th>
@@ -24,7 +176,7 @@ navCurrent: insights
       </tr>
     </thead>
     <tbody>
-      {%- for g in insights.cohesion.groups %}
+      {%- for g in c.groups %}
       <tr>
         <th scope="row">{{ g.label }}</th>
         <td>{{ g.games }}</td>
@@ -35,8 +187,40 @@ navCurrent: insights
       {%- endfor %}
     </tbody>
   </table>
-  <p class="muted">Profit at standard -110 odds needs {{ insights.cohesion.breakEven }}%. A slice only counts as evidence when its whole likely range clears that. Games where a team had fewer than 10 games of history are left out, as are pushes. Cohesion is measured as the average number of starts each pair in the starting five had made together. Updated as new games finish.</p>
-  {% else %}
-  <p>Lineup history is still downloading. It takes under a minute on first run; refresh shortly.</p>
-  {% endif %}
+  </div>
+  <p class="muted">Profit at standard -110 odds needs {{ c.breakEven }}%. A slice only counts as evidence when its whole likely range clears that. Games where a team had fewer than 10 games of history are left out, as are pushes.</p>
 </section>
+
+<section aria-labelledby="winners-heading" class="card insight">
+  <h2 id="winners-heading">How often each signal picked the winner</h2>
+  <p>Every signal, including the market's favorite, with how often the team it favored won outright and covered the spread. No conclusions drawn here.</p>
+  <details>
+    <summary>Show the table ({{ p.winners.length }} signals, {{ p.games }} games)</summary>
+    <div class="table-scroll" role="region" aria-labelledby="t-winners" tabindex="0">
+    <table>
+      <caption id="t-winners">How often the team each signal favored won, over {{ p.games }} games</caption>
+      <thead>
+        <tr>
+          <th scope="col">Signal, and where it is on the card</th>
+          <th scope="col">Games</th>
+          <th scope="col">Picked the winner</th>
+          <th scope="col">Beat the spread (likely range)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {%- for s in p.winners %}
+        <tr>
+          <th scope="row">{{ s.label }}{% if s.group %} (a group of stats){% endif %}<br><span class="muted">{{ s.where }}</span></th>
+          <td>{{ s.games }}</td>
+          <td>{{ s.won }}</td>
+          <td>{{ s.ats }} ({{ s.atsRange }})</td>
+        </tr>
+        {%- endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+</section>
+{% else %}
+<p>Lineup history is still downloading. It takes under a minute on first run. Refresh shortly.</p>
+{% endif %}

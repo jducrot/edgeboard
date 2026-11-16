@@ -90,11 +90,35 @@ retrospective as a bulleted list, plus a box for your own notes. Each pick
 keeps its frozen snapshot, viewable inline. A link downloads every pick as
 a spreadsheet.
 
-**Insights** (`/insights/`): research results. The first question is
-whether the more cohesive team beats the spread. Every game is scored using
-only games played before it, and results are shown with 95% ranges and a
-plain verdict. So far the answer is no better than chance, so cohesion
-stays out of the Line check.
+**Insights** (`/insights/`): research on every game in lineup history,
+each scored only from what its card would have shown before tip-off.
+
+- **What flags an upset?** For each signal on the card (record, net
+  rating, defense, rebounding, cohesion, rest, missing starters, the Line
+  check, and more), how often the underdog won when that signal backed it.
+  Each result is compared with how often underdogs usually win at the
+  same spreads, fitted to the same games, because small spreads produce
+  far more upsets and would otherwise flatter any signal that backs
+  close-game underdogs. Results are labelled in words ("Clearly more than
+  usual", "More than usual, but could be chance", "About the usual rate"),
+  with tables for how many of the card's 13 stats backed the underdog and
+  for upsets by spread size.
+- **Does the Line check's verdict beat the spread?** The side the stats
+  leaned toward, against the spread, for each of the card's three
+  verdicts.
+- **Does cohesion help?** What "average pair" and the cohesion gap mean,
+  the cutoffs behind "large gap (top third)", a worked example, and the
+  results by slice.
+- **How often each signal picked the winner,** in a disclosure, with no
+  conclusions drawn.
+
+The findings are worded from the data at build time, so the text never
+goes stale. Pregame cards carry two lines from this research: the Line
+check says whether the stats back the underdog or the favorite and how
+underdogs did in past games like that, and the Cohesion table says how
+big the gap is and how the more cohesive team did in past games with a gap
+that size. On a phone, the research tables scroll sideways inside a named,
+focusable box instead of breaking words.
 
 ## Data sources
 
@@ -108,7 +132,12 @@ Lineup history lives in `data/history.db`, separate from your picks so it
 can be deleted and rebuilt at any time. The server fills it in the
 background on first start (about 1,500 games in under a minute, and pages
 work meanwhile), then fetches only newly finished games, at most hourly. A
-game ESPN has no box score for is skipped instead of retried forever.
+game ESPN has no box score for is skipped instead of retried forever. Each
+game stores the starters, minutes, pregame spread, and both teams' box-score
+totals (shots, 3-pointers, free throws, rebounds, turnovers), which the
+Insights research uses. History saved before the totals were kept fills
+them in once, in the background (about 1,500 games in under a minute). A
+spread already saved is never downloaded again or erased.
 
 Caching, fastest layer first:
 
@@ -300,6 +329,13 @@ data, so your real picks are never touched. They cover:
   cannot break a day, and slate dates survive daylight-saving changes.
 - Lineups: a box score that failed to load is not counted as a missed
   game, and a lineup built from failed downloads is not reused.
+- The Insights research: every game is scored only from earlier games,
+  back-to-backs are judged on Eastern dates, the Line check replay follows
+  the card's rules, upsets are compared with the usual rate at the same
+  spread (a signal that only backs close-game underdogs gets no credit),
+  findings name an edge only past the chance bar, box-score totals are
+  stored without losing a saved spread, and the page's tables are labelled
+  and scroll in a keyboard-reachable box on a phone.
 - Backups, the spreadsheet export, old slate pages being removed, saves
   made during a refresh, and the wordmark.
 
