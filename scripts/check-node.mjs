@@ -1,6 +1,8 @@
-// Runs before `npm run dev` and `npm start`. Uses no dependencies, so it
-// works even when the installed packages do not match the Node version.
-const MIN_MAJOR = 22;
+// Runs before `npm run dev`, `npm start`, and `npm test`, and is the first
+// import in server.mjs, so it also guards `node server.mjs`. Uses no
+// dependencies, so it works even when installed packages do not match.
+// EDGEBOARD_MIN_NODE exists only so the tests can simulate an old Node.
+const MIN_MAJOR = Number(process.env.EDGEBOARD_MIN_NODE) || 22;
 const major = Number(process.versions.node.split(".")[0]);
 if (major < MIN_MAJOR) {
   console.error(`

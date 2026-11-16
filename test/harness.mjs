@@ -93,6 +93,42 @@ export async function startServer(sandbox, { offline = false } = {}) {
   };
 }
 
+/**
+ * Start the app expecting it to stop on its own (for startup errors).
+ * Returns its exit code and everything it printed.
+ */
+export async function runUntilExit(sandbox, { port, env = {}, timeoutMs = 30_000 } = {}) {
+  const child = spawn(process.execPath, [path.join(ROOT, "server.mjs")], {
+    cwd: os.tmpdir(),
+    env: {
+      ...process.env,
+      PORT: String(port ?? (await freePort())),
+      EDGEBOARD_DATA_DIR: sandbox.data,
+      EDGEBOARD_OUT_DIR: sandbox.out,
+      EDGEBOARD_NO_HISTORY_SYNC: "1",
+      ...env,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let log = "";
+  child.stdout.on("data", (d) => (log += d));
+  child.stderr.on("data", (d) => (log += d));
+  const code = await new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      child.kill();
+      resolve("did not exit");
+    }, timeoutMs);
+    child.on("exit", (c) => {
+      clearTimeout(timer);
+      resolve(c);
+    });
+  });
+  return { code, log };
+}
+
+/** True when output contains a JavaScript stack trace. */
+export const hasStackTrace = (text) => /^\s+at .+\(.+:\d+:\d+\)$/m.test(text);
+
 /** A raw HTTP request to the test server (bypasses any proxy settings). */
 export function request(server, pathname, { method = "GET", headers = {}, body } = {}) {
   return new Promise((resolve, reject) => {

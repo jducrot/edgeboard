@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { makeSandbox, startServer, request, postForm, findOpenGame } from "./harness.mjs";
+import { makeSandbox, startServer, request, postForm, findOpenGame, hasStackTrace } from "./harness.mjs";
 
 test("a brand-new copy started offline explains itself instead of crashing", async () => {
   // Nothing downloaded and nothing built, as on a fresh clone.
@@ -18,6 +18,8 @@ test("a brand-new copy started offline explains itself instead of crashing", asy
     assert.match(slate.body, /Check your internet connection/);
     await new Promise((r) => setTimeout(r, 500));
     assert.equal(server.exited(), null, "the server must keep running");
+    assert.match(server.log(), /Could not build pages yet: ESPN could not be reached, and nothing has been downloaded on this computer/);
+    assert.ok(!hasStackTrace(server.log()), `no crash dump in the terminal:\n${server.log()}`);
   } finally {
     await server.stop();
     await sandbox.cleanup();

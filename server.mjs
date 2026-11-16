@@ -2,6 +2,9 @@
 // (predict, predict/update, retro, refresh), and rebuilds the site when data changes.
 // Built-in Node modules only.
 
+// Must stay the first import: it stops the app on an unsupported Node
+// version before the database driver loads and can crash.
+import "./scripts/check-node.mjs";
 import http from "node:http";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -36,7 +39,11 @@ import { CACHE_DIR, DATA_DIR, OUT_DIR, ROOT } from "./lib/paths.mjs";
 // folder, so work from the app's own folder wherever it was started from.
 process.chdir(ROOT);
 
-const PORT = Number(process.env.PORT ?? 3000);
+const PORT = Number(process.env.PORT || 3000);
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  console.error(`PORT must be a whole number from 1 to 65535, but it is set to "${process.env.PORT}".`);
+  process.exit(1);
+}
 // Only this computer can reach the app. Set HOST (and EDGEBOARD_ALLOWED_HOSTS)
 // only if you deliberately want other devices on your network to reach it.
 const HOST = process.env.HOST || "127.0.0.1";
@@ -54,6 +61,8 @@ const STATUS_FILE = path.join(DATA_DIR, "status.json");
 // Earlier versions kept the status in the download cache.
 const OLD_STATUS_FILE = path.join(CACHE_DIR, "edgeboard-status.json");
 const BACKUP_EVERY_MS = 24 * 60 * 60 * 1000;
+// EDGEBOARD_DEBUG=1 prints the page builder's full technical output.
+const DEBUG = process.env.EDGEBOARD_DEBUG === "1";
 // For tests and development: skip the lineup-history download.
 const HISTORY_SYNC_ENABLED = process.env.EDGEBOARD_NO_HISTORY_SYNC !== "1";
 // Pages rebuild on request once the last build is older than this. Nothing
@@ -135,12 +144,20 @@ async function doBuild() {
   // Offline, the build still runs: expired cached data is used where it
   // exists, and the page notice says so.
   const started = Date.now();
+  const builderOutput = [];
+  const capture = (...parts) => builderOutput.push(parts.join(" "));
+  let built = false;
   try {
     const elev = new Eleventy("site", OUT, { quietMode: true });
+    elev.logger.overrideLogger({ log: capture, info: capture, warn: capture, error: capture, debug: capture });
     await elev.write();
+    built = true;
   } catch (e) {
     status.buildFailed = true;
+    if (DEBUG) console.error(builderOutput.join("\n"));
     throw e;
+  } finally {
+    if (DEBUG && built) console.log(builderOutput.join("\n"));
   }
   status.buildFailed = false;
   lastBuiltAt = Date.now();
@@ -152,8 +169,19 @@ async function doBuild() {
   if (online && Date.now() - lastPrunedAt > PRUNE_EVERY_MS) prune();
 }
 
+/** One plain sentence about why a refresh failed. */
+function plainReason(e) {
+  if (status.offline) return "ESPN could not be reached";
+  return String(e?.message ?? e).split("\n")[0].slice(0, 160);
+}
+
+const DEBUG_HINT = DEBUG ? "" : " (Set EDGEBOARD_DEBUG=1 for technical details.)";
+
 function logRefreshFailure(e) {
-  console.error("Refresh failed; showing the last pages built:", e?.message ?? e);
+  console.error(
+    `Refresh failed: ${plainReason(e)}. Showing the last pages built; it will try again on your next page load.${status.offline ? "" : DEBUG_HINT}`,
+  );
+  if (DEBUG) console.error(e);
 }
 
 const builds = createBuildQueue(doBuild);
@@ -196,7 +224,11 @@ function syncHistoryInBackground() {
       if (failed > 0) console.log(`Lineup history: ${failed} games will retry on the next sync.`);
       if (fetched > 0) await rebuildAfterChange();
     })
-    .catch((e) => console.error("Lineup history sync failed:", e.message ?? e));
+    .catch((e) =>
+      console.error(
+        `Lineup history could not update (${status.offline ? "ESPN could not be reached" : String(e?.message ?? e).split("\n")[0]}). It will try again within the hour.`,
+      ),
+    );
 }
 
 const pagesExist = () =>
@@ -650,35 +682,28 @@ async function handleRequest(req, res) {
 // Start serving right away when pages from an earlier run exist, and
 // refresh in the background. Only a first-ever run waits for a build, and
 // even then a failed build (offline) does not stop the server.
-backupInBackground();
-
-// Lineup history syncs after the first refresh, once we know ESPN answers.
-const syncIfOnline = () => {
-  if (!status.offline) syncHistoryInBackground();
-};
-if (await pagesExist()) {
-  console.log("Serving the last pages built; refreshing in the background…");
-  rebuild().then(syncIfOnline, logRefreshFailure);
-} else {
-  console.log("Building site for the first time…");
-  await rebuild().then(syncIfOnline, (e) =>
-    console.error("First build failed; will retry when a page is loaded:", e.message ?? e),
-  );
-}
-
+// Claim the port before doing any work, so a second copy started by
+// mistake stops at once instead of building over the first one's pages.
 const listeners = [http.createServer(handleRequest)];
-listeners[0].listen(PORT, HOST, () => {
-  console.log(`EdgeBoard running at http://localhost:${PORT}`);
-  if (HOST === "127.0.0.1") {
-    console.log("Only this computer can reach it.");
-  } else {
-    console.log(`Listening on ${HOST}: other devices on your network may reach it.`);
-  }
-  const window =
-    STALE_AFTER_MS >= 60_000
-      ? `${Math.round(STALE_AFTER_MS / 60_000)} minutes`
-      : `${Math.round(STALE_AFTER_MS / 1000)} seconds`;
-  console.log(`Pages refresh on visit when older than ${window}, or use the Refresh button.`);
+await new Promise((resolve) => {
+  listeners[0].once("error", (e) => {
+    if (e.code === "EADDRINUSE") {
+      console.error(`
+Port ${PORT} is already in use, so EdgeBoard cannot start.
+
+EdgeBoard is probably already running in another terminal window. Use that
+one, or stop it with Ctrl+C there. To run a second copy anyway, pick
+another port:
+
+  Mac and Linux:          PORT=${PORT + 1} npm run dev
+  Windows (PowerShell):   $env:PORT=${PORT + 1}; npm run dev
+`);
+    } else {
+      console.error(`EdgeBoard could not listen on port ${PORT} (${e.code ?? e.message}).`);
+    }
+    process.exit(1);
+  });
+  listeners[0].listen(PORT, HOST, resolve);
 });
 // "localhost" can resolve to the IPv6 address ::1 first on some systems,
 // so listen there too when staying local. Harmless if IPv6 is unavailable.
@@ -687,4 +712,33 @@ if (HOST === "127.0.0.1") {
   v6.on("error", () => {});
   v6.listen(PORT, "::1");
   listeners.push(v6);
+}
+console.log(`EdgeBoard running at http://localhost:${PORT}`);
+if (HOST === "127.0.0.1") {
+  console.log("Only this computer can reach it.");
+} else {
+  console.log(`Listening on ${HOST}: other devices on your network may reach it.`);
+}
+const window =
+  STALE_AFTER_MS >= 60_000
+    ? `${Math.round(STALE_AFTER_MS / 60_000)} minutes`
+    : `${Math.round(STALE_AFTER_MS / 1000)} seconds`;
+console.log(`Pages refresh on visit when older than ${window}, or use the Refresh button.`);
+
+backupInBackground();
+
+// Lineup history syncs after the first refresh, once we know ESPN answers.
+const syncIfOnline = () => {
+  if (!status.offline) syncHistoryInBackground();
+};
+if (await pagesExist()) {
+  console.log("Serving the last pages built; refreshing in the background.");
+  rebuild().then(syncIfOnline, logRefreshFailure);
+} else {
+  console.log("Building pages for the first time (pages load as soon as it finishes).");
+  rebuild().then(syncIfOnline, (e) =>
+    console.error(
+      `Could not build pages yet: ${plainReason(e)}${status.offline ? ", and nothing has been downloaded on this computer" : ""}. EdgeBoard is running and will try again when you load a page.${status.offline ? "" : DEBUG_HINT}`,
+    ),
+  );
 }
