@@ -355,6 +355,123 @@ a {
   margin-top: 0.5rem;
 }
 
+.linecheck h4 {
+  font-size: 0.875rem;
+  margin: 0.5rem 0 0.25rem;
+}
+
+/* Market and Stats side by side. */
+.lc-margins {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+  margin: 0.25rem 0 0;
+  font-size: 1rem;
+}
+
+.lc-verdict {
+  font-weight: 600;
+}
+
+/* Two columns of flags, one per team, stacked on narrow cards. */
+.lc-sides {
+  display: grid;
+  gap: 0 1rem;
+}
+
+@container (min-width: 28rem) {
+  .lc-sides {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* An open flag takes the whole row so its explanation can be read. */
+.flags li:has(details[open]) {
+  flex-basis: 100%;
+}
+
+.flag {
+  margin: 0;
+}
+
+.flag > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.125rem 0.625rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.flag > summary:hover {
+  text-decoration: underline;
+}
+
+.flag[open] > summary {
+  font-weight: 700;
+}
+
+.flag p {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.lc-more {
+  margin-top: 0.5rem;
+}
+
+/* Upset Alert: the words carry the meaning; the color and the warning
+   shape help the eye find it. 6.5:1 or better in both schemes. */
+:root {
+  --upset: #b91c1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --upset: #f87171;
+  }
+}
+
+.upset-alert {
+  border: 2px solid var(--upset);
+  border-radius: 6px;
+  padding: 0.25rem 0.625rem;
+  margin: 0.5rem 0;
+  background: var(--surface);
+  font-size: 0.9375rem;
+}
+
+.upset-alert > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2rem;
+  color: var(--upset);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.upset-alert > summary:hover {
+  text-decoration: underline;
+}
+
+.upset-alert > summary svg {
+  flex: none;
+  width: 1.25em;
+  height: 1.25em;
+}
+
 .recap {
   border-top: 1px solid var(--border);
   margin-top: 0.75rem;

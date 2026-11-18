@@ -57,14 +57,62 @@ eleventyComputed:
       {% endif %}
 
       {% if game.lineCheck %}
+      {% set lc = game.lineCheck %}
       <section aria-label="Line check: {{ game.heading }}" class="linecheck">
         <h3>Line check</h3>
-        <ul class="fact-list">
-          {%- for item in game.lineCheck %}
-          <li>{{ item }}</li>
+        {% if lc.alert %}
+        <details class="upset-alert">
+          <summary><svg aria-hidden="true" focusable="false" viewBox="0 0 20 20" width="20" height="20"><path d="M10 2.5 18.5 17h-17z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M10 8v4.5M10 14.6v.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Upset Alert: {{ lc.alert.team }}</summary>
+          <ul class="fact-list">
+            {%- for r in lc.alert.reasons %}
+            <li>{{ r }}</li>
+            {%- endfor %}
+          </ul>
+        </details>
+        {% endif %}
+        <dl class="lc-margins">
+          <div><dt>Market</dt><dd>{{ lc.market }}</dd></div>
+          <div><dt>Stats</dt><dd>{{ lc.stats }}</dd></div>
+        </dl>
+        <p class="lc-verdict">{{ lc.verdict }}</p>
+        <div class="lc-sides">
+          {%- for col in [lc.away, lc.home] %}
+          <div>
+            <h4>Favors {{ col.abbr }} ({{ col.role }}{% if col.underdog %}, underdog{% endif %}): {{ col.counted }} of {{ col.total }} stats</h4>
+            {% if col.flags.length %}
+            <ul class="flags" role="list">
+              {%- for f in col.flags %}
+              <li><details class="flag"><summary>{{ f.label }}</summary><p>{{ f.detail }}</p></details></li>
+              {%- endfor %}
+            </ul>
+            {% else %}
+            <p class="muted">Nothing on the card.</p>
+            {% endif %}
+          </div>
           {%- endfor %}
-        </ul>
-        <p class="muted">Computed from recent efficiency, home court, rest, and fresh key absences, nothing else. The market knows more than this model.</p>
+        </div>
+        <details class="lc-more">
+          <summary>How the stats number is built</summary>
+          <ul class="fact-list">
+            {%- for part in lc.parts %}
+            <li>{{ part | upperFirst }}.</li>
+            {%- endfor %}
+          </ul>
+          <p>{{ lc.meaning }}</p>
+          <p class="muted">Computed from recent efficiency, home court, rest, and fresh key absences, nothing else. The market knows more than this model.</p>
+        </details>
+        {% if lc.uncertain.length %}
+        <details class="lc-more">
+          <summary>{{ lc.uncertain.length }} {% if lc.uncertain.length == 1 %}player{% else %}players{% endif %} uncertain</summary>
+          <ul class="fact-list">
+            {%- for u in lc.uncertain %}
+            <li>{{ u }}</li>
+            {%- endfor %}
+          </ul>
+          <p class="muted">Not priced into the stats number.</p>
+        </details>
+        {% endif %}
+        {% if lc.history %}<p class="muted">{{ lc.history }}</p>{% endif %}
       </section>
       {% endif %}
 

@@ -19,6 +19,7 @@ import { reconcileStartersAndInjuries } from "../../lib/lineup.mjs";
 import { compareToSnapshot } from "../../lib/changes.mjs";
 import { cohesionIndex, lineupCohesion, cohesionBacktest, cohesionNote } from "../../lib/cohesion.mjs";
 import { predictorStudy, lineCheckNote } from "../../lib/predictors.mjs";
+import { sideFlags, withHistory, upsetAlert, COUNTED_TOTAL } from "../../lib/flags.mjs";
 import { lineCheck } from "../../lib/linecheck.mjs";
 import { teamAnalytics } from "../../lib/teamstats.mjs";
 
@@ -122,6 +123,49 @@ function rankRows(ranks, awayId, homeId) {
 }
 
 /** Cohesion of each team's projected five, as table rows. */
+/** The Line check laid out for scanning: alert, margins, flags by side, then detail. */
+function lineCheckView(check, g, { form, rest, awayStats, homeStats, awayStarters, homeStarters, cohesion, study }) {
+  const pair = (team, starters) =>
+    cohesion ? (lineupCohesion(cohesion, team.id, starters?.map((s) => s.id))?.pairAvg ?? null) : null;
+  const side = (team, stats, starters) => ({
+    abbr: team.abbreviation,
+    form: form.get(team.id) ?? null,
+    stats,
+    rest: rest.get(team.id) ?? null,
+    pair: pair(team, starters),
+    replaced: starters ? starters.filter((s) => s.projected).length : null,
+  });
+  const underdog = check.marketHome > 0 ? "away" : check.marketHome < 0 ? "home" : null;
+  const flags = withHistory(
+    sideFlags({ away: side(g.away, awayStats, awayStarters), home: side(g.home, homeStats, homeStarters) }),
+    underdog,
+    study,
+  );
+  const abbr = { away: g.away.abbreviation, home: g.home.abbreviation };
+  const alert = upsetAlert({ flags, statsHome: check.statsHome, marketHome: check.marketHome, abbr, study });
+  const column = (key, role) => ({
+    abbr: abbr[key],
+    role,
+    underdog: underdog === key,
+    flags: flags.filter((f) => f.side === key),
+    counted: flags.filter((f) => f.side === key && f.counted).length,
+    total: COUNTED_TOTAL,
+  });
+  return {
+    alert,
+    market: check.market,
+    stats: check.stats,
+    verdict: check.verdict,
+    meaning: check.meaning,
+    parts: check.parts,
+    uncertain: check.uncertain,
+    away: column("away", "away"),
+    home: column("home", "home"),
+    // With no alert, the history line still says how underdogs fared.
+    history: alert ? null : lineCheckNote(study, check.statsHome, check.marketHome),
+  };
+}
+
 function cohesionRows(index, g, awayStarters, homeStarters, study) {
   const a = lineupCohesion(index, g.away.id, awayStarters?.map((s) => s.id));
   const h = lineupCohesion(index, g.home.id, homeStarters?.map((s) => s.id));
@@ -588,9 +632,16 @@ export default async function () {
               rest.get(g.away.id) ?? null,
             )
           : null,
-        lineCheck: check
-          ? [...check.items, lineCheckNote(study, check.statsHome, check.marketHome)].filter(Boolean)
-          : null,
+        lineCheck: check ? lineCheckView(check, g, {
+          form,
+          rest,
+          awayStats,
+          homeStats,
+          awayStarters: awayStartersList,
+          homeStarters: homeStartersList,
+          cohesion,
+          study,
+        }) : null,
         analyticsRows: g.statusState === "pre" ? analyticsRows(awayStats, homeStats) : null,
         rankRows: g.statusState === "pre"
           ? rankRows(leagueRanks, g.away.id, g.home.id)

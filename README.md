@@ -34,12 +34,24 @@ Every game that has not started shows:
   probabilities with the bookmaker's cut removed. The total appears only
   next to EdgeBoard's own pace-and-efficiency projection, because a bare
   total says nothing about who wins.
-- **Line check**: a stats-only margin estimate compared with the spread,
-  with every part named. It uses last-10 net ratings scaled for pace (or
-  season scoring margins early on), +2.5 for home court, -2 for a
-  back-to-back, and -3 for each fresh key absence, capped at -6. Players
-  who are game-time decisions, or missing with no injury listed, are named
-  as risks the estimate cannot price.
+- **Line check**, laid out for scanning:
+  - An **Upset Alert** at the top when the stats pick the market's
+    underdog to win, or when at least 7 of the card's 13 counted stats
+    favor the underdog. Opening it gives each reason and how underdogs
+    did in past games like it (from the Insights research), worded as
+    "more than usual, but could be chance" where that is the honest read.
+  - The market's margin and the stats margin side by side, then a
+    one-line verdict.
+  - Two columns, "Favors DAL" and "Favors CLE", each with a count out of
+    the 13 stats and one- or two-word flags (Record, Net rating, Defense,
+    Rested, Cohesion, Healthier, and so on). Each flag opens to show the
+    numbers behind it, and a flag that backs the underdog also shows how
+    that stat did at spotting upsets. Home court is shown but not counted.
+  - "How the stats number is built" and any uncertain players, folded
+    away until opened. The stats number uses last-10 net ratings scaled
+    for pace (or season scoring margins early on), +2.5 for home court,
+    -2 for a back-to-back, and -3 for each fresh key absence, capped at
+    -6.
 - **Matchup table**: records, each offense against the other team's
   defense (already subtracted, so no math is needed), last 10 and streak,
   and rest.
@@ -374,6 +386,11 @@ data, so your real picks are never touched. They cover:
   since your pick.
 - WCAG 2.2 A and AA with axe in light and dark schemes, and reflow at
   320px.
+- The Line check: flags land on the side they favor (lower is better for
+  defense and starters missing), home court is not counted, the Upset
+  Alert fires on either rule and not otherwise, flags open from the
+  keyboard, and research history is added only to flags backing the
+  underdog.
 - Finished games: both scores in the heading, the winner in bold orange
   large enough to pass contrast, named in words, and a check or an X beside your picks on the cards
   and the Review page.

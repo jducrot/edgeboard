@@ -220,6 +220,44 @@ test("insights: the upset study shows, and every table is labelled", async (t) =
   await page.close();
 });
 
+test("Line check: flags by side open from the keyboard, and any Upset Alert says why", async (t) => {
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  let checked = 0;
+  for (const p of await slatePaths(server)) {
+    await page.goto(server.base + p, { waitUntil: "networkidle" });
+    for (const lc of await page.locator("section.linecheck").all()) {
+      checked++;
+      const sides = await lc.locator("h4").allTextContents();
+      assert.equal(sides.length, 2, "one column per team");
+      for (const h of sides) assert.match(h, /^Favors [A-Z]+ \((away|home)(, underdog)?\): \d+ of 13 stats$/);
+      assert.match(await lc.locator(".lc-margins").textContent(), /Market.+Stats/s);
+      const alert = lc.locator("details.upset-alert");
+      if (await alert.count()) {
+        assert.match(await alert.locator("summary").textContent(), /^Upset Alert: [A-Z]+$/);
+        assert.ok((await alert.locator("li").count()) >= 1, "the alert gives its reasons");
+      }
+    }
+  }
+  if (checked === 0) {
+    await page.close();
+    return t.skip("no Line checks on the current slates");
+  }
+  // One flag, by keyboard only.
+  const flag = page.locator("section.linecheck details.flag").first();
+  if (!(await flag.count())) {
+    for (const p of await slatePaths(server)) {
+      await page.goto(server.base + p, { waitUntil: "networkidle" });
+      if (await page.locator("section.linecheck details.flag").count()) break;
+    }
+  }
+  const first = page.locator("section.linecheck details.flag").first();
+  await first.locator("summary").focus();
+  await page.keyboard.press("Enter");
+  assert.equal(await first.evaluate((d) => d.open), true, "Enter opens a flag");
+  assert.ok((await first.locator("p").textContent()).length > 10, "with the numbers behind it");
+  await page.close();
+});
+
 test("slate pages for dates outside the window are removed after a build", async () => {
   const paths = await slatePaths(server);
   assert.ok(paths.length > 0);

@@ -511,3 +511,61 @@ test("sync: when both computers picked the same game, the earlier pick is kept, 
   assert.equal(onMac[0].uid, "mac");
   assert.match(onMac[0].note, /DAL because Healthier/);
 });
+
+/* ------------------------- Line check flags ---------------------------- */
+
+const F = await import("../lib/flags.mjs");
+const team = (abbr, o = {}) => ({
+  abbr,
+  form: { wins: 5, losses: 5, avgPointsFor: 110, avgPointsAgainst: 110, lastTen: "5-5", ...o.form },
+  stats: { net: 0, ortg: 110, drtg: 110, efg: 54, efgAllowed: 54, trbPct: 50, tovPct: 13, tovForcedPct: 13, tpPct: 36, ...o.stats },
+  rest: { backToBack: false, ...o.rest },
+  pair: o.pair ?? 10,
+  replaced: o.replaced ?? 0,
+});
+
+test("flags: each stat lands on the side it favors, with lower-is-better where it should be", () => {
+  const flags = F.sideFlags({
+    away: team("DAL", { stats: { drtg: 105 }, replaced: 0, rest: { backToBack: false } }),
+    home: team("CLE", { stats: { drtg: 112, net: 4 }, replaced: 2, rest: { backToBack: true } }),
+  });
+  const side = (key) => flags.find((f) => f.key === key)?.side;
+  assert.equal(side("defense"), "away", "fewer points allowed is better");
+  assert.equal(side("lineup"), "away", "fewer starters replaced is healthier");
+  assert.equal(side("rest"), "away", "the team not on a back-to-back");
+  assert.equal(side("net"), "home");
+  assert.equal(side("record"), undefined, "a tie raises no flag");
+  const home = flags.find((f) => f.key === "home");
+  assert.equal(home.counted, false, "home court is shown but not counted with the stats");
+  assert.equal(F.COUNTED_TOTAL, 13);
+  assert.ok(flags.every((f) => f.label.split(" ").length <= 2), "flags are one or two words");
+});
+
+test("flags: research history is added only to flags that back the underdog", () => {
+  const study = { upsetSignals: [{ key: "defense", games: 376, wonPct: 40.7, usualPct: 37.5, standing: "More than usual, but could be chance" }] };
+  const flags = [
+    { key: "defense", side: "away", detail: "D." },
+    { key: "defense", side: "home", detail: "D." },
+  ];
+  const [dog, fav] = F.withHistory(flags, "away", study);
+  assert.match(dog.detail, /When this favored the underdog in past games, the underdog won 41% of 376/);
+  assert.equal(fav.detail, "D.");
+});
+
+test("Upset Alert: raised when the stats pick the underdog or 7 of the 13 stats favor it, and not otherwise", () => {
+  const abbr = { away: "DAL", home: "CLE" };
+  const counted = (n, side) => Array.from({ length: n }, (_, i) => ({ key: `k${i}`, side, counted: true }));
+  // CLE favored by 5 (market), stats agree, few stats for DAL: no alert.
+  assert.equal(F.upsetAlert({ flags: counted(3, "away"), statsHome: 4, marketHome: 5, abbr }), null);
+  // Stats pick DAL, the underdog.
+  const a = F.upsetAlert({ flags: counted(3, "away"), statsHome: -2, marketHome: 5, abbr });
+  assert.equal(a.team, "DAL");
+  assert.match(a.reasons[0], /The stats pick DAL to win, but the market makes DAL the underdog against CLE/);
+  // Seven counted stats favor DAL even though the stats margin agrees with the market.
+  const b = F.upsetAlert({ flags: [...counted(7, "away"), { key: "home", side: "away", counted: false }], statsHome: 2, marketHome: 5, abbr });
+  assert.match(b.reasons[0], /^7 of the 13 counted stats favor DAL, the underdog/);
+  // Six counted plus an uncounted flag is not enough.
+  assert.equal(F.upsetAlert({ flags: [...counted(6, "away"), { key: "home", side: "away", counted: false }], statsHome: 2, marketHome: 5, abbr }), null);
+  // No line, no alert.
+  assert.equal(F.upsetAlert({ flags: counted(9, "away"), statsHome: -3, marketHome: 0, abbr }), null);
+});
