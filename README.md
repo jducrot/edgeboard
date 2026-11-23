@@ -117,6 +117,15 @@ each scored only from what its card would have shown before tip-off.
   usual", "More than usual, but could be chance", "About the usual rate"),
   with tables for how many of the card's 13 stats backed the underdog and
   for upsets by spread size.
+- **Watch list: ideas still being tested.** Popular betting ideas
+  (fatigue from 3 games in 4 nights or 4 in 6, bouncing back from a
+  15-point loss, rolling after a 15-point win, winning and losing streaks,
+  recent record against the spread, home or road record, earlier meetings,
+  playing above season level, home underdogs), each measured separately in
+  the last two seasons. One earns a flag in the Line check only by beating
+  the market in both seasons on its own: its cover rate's whole likely
+  range above 50%, or its underdogs winning clearly more often than usual.
+  Until then it is listed with plain words about where it stands.
 - **Does the Line check's verdict beat the spread?** The side the stats
   leaned toward, against the spread, for each of the card's three
   verdicts.
@@ -457,6 +466,9 @@ data, so your real picks are never touched. They cover:
   findings name an edge only past the chance bar, box-score totals are
   stored without losing a saved spread, and the page's tables are labelled
   and scroll in a keyboard-reachable box on a phone.
+- The watch list: its measures use earlier games only, fatigue is judged
+  on Eastern dates, an idea reaches the cards only after beating the market
+  in both seasons, and only earned ideas show as card flags.
 - Syncing picks: two copies of EdgeBoard share a stand-in repository, a
   pick saved on one appears on the other, an update flows back, newer
   edits win, and a game picked on both keeps the earlier pick with a note.

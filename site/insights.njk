@@ -118,6 +118,39 @@ navCurrent: insights
   </ul>
 </section>
 
+{% if p.watch %}
+<section aria-labelledby="watch-heading" class="card insight">
+  <h2 id="watch-heading">Watch list: ideas still being tested</h2>
+  <p>Popular betting ideas, tested the same way as everything above but kept off the game cards until they earn a place. One earns it only by beating the market on its own in both {{ p.watch.seasons[0] }} and {{ p.watch.seasons[1] }}: either its cover rate's whole likely range sits above 50%, or its underdogs won clearly more often than usual at their spreads. It then appears as a flag in the Line check, not counted with the 13 stats.</p>
+  <p><strong>{% if p.watch.ready %}{{ p.watch.ready }} of {{ p.watch.rows.length }} {% if p.watch.ready == 1 %}idea has{% else %}ideas have{% endif %} earned a place on the cards.{% else %}None of the {{ p.watch.rows.length }} ideas has earned a place on the cards yet.{% endif %}</strong> A game counts once both teams have played 10 games that season, so the current season fills in as it goes.</p>
+  <div class="table-scroll" role="region" aria-labelledby="t-watch" tabindex="0">
+  <table>
+    <caption id="t-watch">Watch-list ideas, by season</caption>
+    <thead>
+      <tr>
+        <th scope="col">Idea, and its flag name</th>
+        <th scope="col">Covered, {{ p.watch.seasons[0] }}</th>
+        <th scope="col">Covered, {{ p.watch.seasons[1] }}</th>
+        <th scope="col">Underdogs it backed won, {{ p.watch.seasons[0] }}</th>
+        <th scope="col">Where it stands</th>
+      </tr>
+    </thead>
+    <tbody>
+      {%- for w in p.watch.rows %}
+      <tr>
+        <th scope="row">{{ w.name }}<br><span class="muted">Flag: {{ w.flag }}</span></th>
+        <td>{{ w.lastCovered }}</td>
+        <td>{{ w.currentCovered }}</td>
+        <td>{{ w.lastDogs }}</td>
+        <td>{{ w.status }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
 <section aria-labelledby="linecheck-heading" class="card insight">
   <h2 id="linecheck-heading">Does the Line check's verdict beat the spread?</h2>
   <p>Each Line check ends by saying whether the stats agree with the line. Here is how the side the stats leaned toward did against the spread, grouped by that verdict.</p>

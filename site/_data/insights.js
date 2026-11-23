@@ -48,6 +48,24 @@ function lineCheckVerdict(bands) {
   return `None of the three verdicts clears the ${BREAK_EVEN.toFixed(1)}% needed to profit, not even strong disagreement. When the stats and the line disagree, treat it as a reason to look closer, not as a bet on its own.`;
 }
 
+function watchSection(watch) {
+  if (!watch?.signals?.length) return null;
+  const covered = (t) => (t.atsGames ? `${pct(t.atsPct)} of ${count(t.atsGames)}` : "No games yet");
+  const dogs = (u) => (u.games ? `${pct(u.wonPct)} of ${count(u.games)} (usual ${pct(u.usualPct)})` : "None yet");
+  return {
+    seasons: watch.seasons,
+    ready: watch.signals.filter((s) => s.ready).length,
+    rows: watch.signals.map((s) => ({
+      name: s.name,
+      flag: s.flag,
+      lastCovered: covered(s.last.ats),
+      currentCovered: covered(s.current.ats),
+      lastDogs: dogs(s.last.upset),
+      status: s.text,
+    })),
+  };
+}
+
 function upsetRow(s, total) {
   return {
     label: s.label,
@@ -102,6 +120,7 @@ function predictorSection(study) {
       ats: pct(s.atsPct),
       atsRange: range(s.atsLow, s.atsHigh),
     })),
+    watch: watchSection(study.watch),
     lineCheckVerdict: lineCheckVerdict(study.lineCheck),
     lineCheck: study.lineCheck.map((b) => ({
       label: b.label,

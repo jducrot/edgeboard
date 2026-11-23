@@ -20,6 +20,7 @@ import { compareToSnapshot } from "../../lib/changes.mjs";
 import { cohesionIndex, lineupCohesion, cohesionBacktest, cohesionNote } from "../../lib/cohesion.mjs";
 import { predictorStudy, lineCheckNote } from "../../lib/predictors.mjs";
 import { sideFlags, withHistory, upsetAlert, COUNTED_TOTAL } from "../../lib/flags.mjs";
+import { watchFlags } from "../../lib/watchlist.mjs";
 import { lineCheck } from "../../lib/linecheck.mjs";
 import { teamAnalytics } from "../../lib/teamstats.mjs";
 
@@ -136,11 +137,17 @@ function lineCheckView(check, g, { form, rest, awayStats, homeStats, awayStarter
     replaced: starters ? starters.filter((s) => s.projected).length : null,
   });
   const underdog = check.marketHome > 0 ? "away" : check.marketHome < 0 ? "home" : null;
-  const flags = withHistory(
-    sideFlags({ away: side(g.away, awayStats, awayStarters), home: side(g.home, homeStats, homeStarters) }),
-    underdog,
-    study,
-  );
+  const flags = [
+    ...withHistory(
+      sideFlags({ away: side(g.away, awayStats, awayStarters), home: side(g.home, homeStats, homeStarters) }),
+      underdog,
+      study,
+    ),
+    // Watch-list ideas that have beaten the market in both seasons.
+    ...(study?.watchNow
+      ? watchFlags(study.watch, study.watchNow({ homeId: g.home.id, awayId: g.away.id, dateUtc: g.dateUtc }), check.marketHome)
+      : []),
+  ];
   const abbr = { away: g.away.abbreviation, home: g.home.abbreviation };
   const alert = upsetAlert({ flags, statsHome: check.statsHome, marketHome: check.marketHome, abbr, study });
   const column = (key, role) => ({

@@ -580,3 +580,58 @@ test("npm run dev opens the browser on Mac, Windows, and Linux, and only npm run
   assert.match(scripts.dev, /--open/);
   assert.doesNotMatch(scripts.start, /--open/, "npm start and the tests never open a browser");
 });
+
+/* ------------------------------ watch list ----------------------------- */
+
+const WL = await import("../lib/watchlist.mjs");
+
+test("watch list: schedule, last result, streak, and cover record use earlier games only", () => {
+  // Team 1 hosts team 2 every other day, winning by 10 and covering a
+  // 4-point line, then plays 3 nights in a row and loses the 13th by 20.
+  const games = series(11, () => true);
+  const at = (d) => new Date(Date.UTC(2026, 11, d, 23)).toISOString(); // 6 PM Eastern
+  games.push({ ...games[0], eventId: "x12", dateUtc: at(1) });
+  games.push({ ...games[0], eventId: "x13", dateUtc: at(2), homeScore: 90, awayScore: 110 });
+  games.push({ ...games[0], eventId: "x14", dateUtc: at(3) });
+  const rows = P.scoreGames(games);
+  const last = rows.find((r) => r.eventId === "x14").home.watch;
+  assert.equal(last.gamesLast3Days, 2, "the 3rd game in 3 nights, with the 13th and 12th counted");
+  assert.equal(last.prevMargin, -20, "the last result, not tonight's");
+  assert.equal(last.streak, -1);
+  assert.equal(last.coverRate, 0.9, "9 of the last 10 covered the 4-point line");
+  assert.equal(last.meetingMargin, (12 * 10 - 20) / 13, "every earlier meeting, never tonight's");
+});
+
+test("watch list: an idea reaches the cards only by beating the market in both seasons", () => {
+  const season = (atsPct, atsGames, z = 0, dogGames = 0) => ({
+    ats: { atsGames, atsPct, atsLow: atsPct - 4, atsHigh: atsPct + 4 },
+    upset: { games: dogGames, z },
+  });
+  const strong = season(57, 300);
+  assert.equal(WL.watchStatus(strong, strong).ready, true);
+  assert.match(WL.watchStatus(strong, season(57, 20)).text, /too few games this season/);
+  assert.match(WL.watchStatus(strong, season(50, 200)).text, /not this season/);
+  assert.match(WL.watchStatus(season(51, 300), season(51, 300)).text, /No edge so far/);
+  // Upsets alone can also earn it, with enough underdog games.
+  const upsets = season(50, 300, 2.2, 60);
+  assert.equal(WL.watchStatus(upsets, upsets).ready, true);
+  assert.equal(WL.watchStatus(upsets, season(50, 300, 2.2, 10)).ready, false, "too few underdog games");
+});
+
+test("watch list: card flags appear only for ideas that earned them, on the side they back", () => {
+  const sig = (key, ready) => ({
+    key, ready, flag: key, name: key,
+    last: { ats: { atsPct: 56 } }, current: { ats: { atsPct: 55 } },
+  });
+  const watch = { seasons: ["2025-26", "2026-27"], signals: [sig("bounceBack", true), sig("winStreak", false)] };
+  const views = {
+    home: { prevMargin: -18, streak: 6 },
+    away: { prevMargin: 3, streak: 1 },
+  };
+  const flags = WL.watchFlags(watch, views, -2);
+  assert.deepEqual(flags.map((f) => [f.key, f.side, f.counted]), [["watch:bounceBack", "home", false]]);
+  // The home-underdog idea reads the spread's sign correctly.
+  const homeDog = WL.WATCH.find((s) => s.key === "homeDog");
+  assert.equal(homeDog.pick({ homeLine: -3.5 }), "home");
+  assert.equal(homeDog.pick({ homeLine: 3.5 }), null);
+});
