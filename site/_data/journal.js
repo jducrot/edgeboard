@@ -3,6 +3,7 @@
 
 import { getScoreboard } from "../../lib/espn.mjs";
 import { trackRecord } from "../../lib/trackrecord.mjs";
+import { confidenceChart, confidenceSummary, promiseAt } from "../../lib/charts.mjs";
 import { predictorStudy } from "../../lib/predictors.mjs";
 
 /** The track record, worded and formatted for the Review page. */
@@ -19,7 +20,9 @@ function trackView(t) {
       row("The market's favorite", t.market),
       row("The Line check's stats", t.stats, "Rebuilt from each pick's snapshot, without fresh absences"),
     ],
-    confidence: t.byConfidence.filter((c) => c.games).map((c) => row(`Confidence ${c.confidence}`, c)),
+    confidence: t.byConfidence.map((c) => row(`Confidence ${c.confidence}`, c, `Promises about ${promiseAt(c.confidence)}%`)),
+    chart: confidenceChart(t.byConfidence),
+    chartSummary: confidenceSummary(t.byConfidence),
     sides: [
       row("You picked the favorite", t.favorite),
       row("You picked the underdog", t.underdog, t.underdog.usualPct != null ? `Underdogs at those spreads usually win ${t.underdog.usualPct.toFixed(0)}%` : ""),

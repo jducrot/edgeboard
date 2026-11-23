@@ -193,6 +193,57 @@ test("finished games you picked: a check for a correct pick, an X for a wrong on
   await page.close();
 });
 
+// Contrast between two computed colors ("rgb(r, g, b)"), per WCAG.
+function contrast(a, b) {
+  const lum = (c) => {
+    const [r, g, bl] = c.match(/\d+(\.\d+)?/g).slice(0, 3).map((v) => {
+      const x = Number(v) / 255;
+      return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (x + 0.05) / (y + 0.05);
+}
+
+test("confidence chart: named by its visible summary, numbers in a table, 3:1 marks in both schemes", async (t) => {
+  for (const scheme of ["light", "dark"]) {
+    const page = await browser.newPage({ colorScheme: scheme, viewport: { width: 1280, height: 900 } });
+    await page.goto(server.base + "/review/", { waitUntil: "networkidle" });
+    const svg = page.locator("svg.confidence-chart");
+    if (!(await svg.count())) {
+      await page.close();
+      return t.skip("no graded picks in this copy");
+    }
+    assert.equal(await svg.getAttribute("role"), "img");
+    const caption = page.locator(`#${await svg.getAttribute("aria-labelledby")}`);
+    assert.match(await caption.textContent(), /^Confidence chart: /, "the visible summary names the chart");
+    assert.ok(await caption.isVisible());
+    assert.equal(await svg.locator(":scope > g").getAttribute("aria-hidden"), "true", "inner marks stay out of the way");
+    assert.equal(await svg.evaluate((el) => el.tabIndex), -1, "not a keyboard stop");
+    const rows = page.locator("details.chart-data table tbody tr");
+    assert.equal(await rows.count(), 5, "every level is in the table");
+    const colors = await page.evaluate(() => {
+      const card = getComputedStyle(document.querySelector("section.track")).backgroundColor;
+      const bar = document.querySelector(".chart-bar");
+      return {
+        card,
+        bar: bar ? getComputedStyle(bar).fill : null,
+        line: getComputedStyle(document.querySelector(".chart-promise")).stroke,
+      };
+    });
+    if (colors.bar) assert.ok(contrast(colors.bar, colors.card) >= 3, `${scheme}: bars ${contrast(colors.bar, colors.card).toFixed(2)}:1`);
+    assert.ok(contrast(colors.line, colors.card) >= 3, `${scheme}: line ${contrast(colors.line, colors.card).toFixed(2)}:1`);
+    await page.close();
+  }
+  // Windows High Contrast: the marks switch to system colors and stay visible.
+  const forced = await browser.newPage({ forcedColors: "active" });
+  await forced.goto(server.base + "/review/", { waitUntil: "networkidle" });
+  const fill = await forced.locator(".chart-bar").first().evaluate((el) => getComputedStyle(el).fill).catch(() => null);
+  if (fill) assert.notEqual(fill, "none");
+  await forced.close();
+});
+
 test("insights: the upset study shows, and every table is labelled", async (t) => {
   // Skip only when this test copy has no lineup history at all. With
   // history present, a "still downloading" page means the study broke.

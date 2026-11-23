@@ -44,8 +44,32 @@ navCurrent: review
   {% endmacro %}
   {{ trackTable("t-compare", "You against the market and the stats, on the same games", "Who picked", t.compare) }}
   {{ trackTable("t-sides", "Where your picks go right or wrong", "When", t.sides) }}
-  {{ trackTable("t-confidence", "How often you were right at each confidence level", "Confidence", t.confidence) }}
-  <p class="muted">A well-calibrated record is right more often at each step up in confidence. The market and the stats rows count only games where each had a pick.</p>
+  {% set c = t.chart %}
+  <figure class="chart">
+    <figcaption id="confidence-chart-summary">{{ t.chartSummary }}</figcaption>
+    <p class="chart-key"><span class="chart-key-bar" aria-hidden="true"></span> Bars: how often you were right. <span class="chart-key-line" aria-hidden="true"></span> Dashed line: what each level promises, from a coin flip (50%) at 1 to a lock (100%) at 5.</p>
+    <svg class="confidence-chart" role="img" aria-labelledby="confidence-chart-summary" viewBox="0 0 {{ c.width }} {{ c.height }}" focusable="false">
+      <g aria-hidden="true">
+        {%- for g in c.grid %}
+        <line class="chart-grid" x1="{{ c.left }}" x2="{{ c.right }}" y1="{{ g.y }}" y2="{{ g.y }}"/>
+        <text class="chart-label" x="{{ c.left - 6 }}" y="{{ g.y + 4 }}" text-anchor="end">{{ g.label }}</text>
+        {%- endfor %}
+        {%- for b in c.bars %}
+        {% if b.has %}<rect class="chart-bar" x="{{ b.x }}" y="{{ b.y }}" width="{{ b.width }}" height="{{ b.height }}"/>{% endif %}
+        <text class="chart-label" x="{{ b.labelX }}" y="{{ c.xLabelY }}" text-anchor="middle">{{ b.confidence }}</text>
+        <text class="chart-value" x="{{ b.labelX }}" y="{{ c.valueY }}" text-anchor="middle">{{ b.value }}</text>
+        <text class="chart-label" x="{{ b.labelX }}" y="{{ c.countY }}" text-anchor="middle">{{ b.count }}</text>
+        {%- endfor %}
+        <polyline class="chart-promise" points="{{ c.promise }}"/>
+        <text class="chart-label" x="{{ (c.left + c.right) / 2 }}" y="{{ c.titleY }}" text-anchor="middle">Confidence level</text>
+      </g>
+    </svg>
+  </figure>
+  <details class="chart-data">
+    <summary>Show the numbers</summary>
+    {{ trackTable("t-confidence", "How often you were right at each confidence level", "Confidence", t.confidence) }}
+  </details>
+  <p class="muted">The market and the stats rows count only games where each had a pick.</p>
 </section>
 {% endif %}
 

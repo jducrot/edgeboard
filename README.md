@@ -104,7 +104,13 @@ ESPN's status (for example "Postponed") and is never treated as played.
 right compared with the market's favorite and the Line check's stats on
 the same games, then by confidence level, favorite or underdog (with the
 usual underdog rate at those spreads), home or road, and against the
-spread. Below it, every prediction with its result. Finished games
+spread. A **confidence chart** shows, for each confidence level, how often
+you were right (bars, with the percentage and pick count under each) next
+to what the level promises (a dashed line from a coin flip at 1 to a lock
+at 5). A visible one-sentence summary names the chart for screen readers,
+and the numbers are in a table under "Show the numbers". Levels with fewer
+than 3 picks are listed but do not decide whether your record climbs with
+your confidence. Below it, every prediction with its result. Finished games
 are graded automatically, with the same check mark or X next to each
 pick (a pick on a postponed game says "Not graded" instead), and each
 graded pick gets a computed
@@ -455,6 +461,10 @@ data, so your real picks are never touched. They cover:
   server both refuse a pick without one, and there is no margin field.
 - Your track record: you against the market and the stats on the same
   games, by confidence, side, and spread.
+- The confidence chart: bars and the promise line match the record, labels
+  never sit where marks can cross them, the visible summary names the
+  chart, the numbers are in a table, the marks measure 3:1 or better in
+  light and dark, and they stay visible in Windows High Contrast mode.
 - Streamlined cards: pregame stat tables sit inside "Full stats", no
   total is shown, flags run strongest first, and weak flags follow a
   "Weak:" label, with the grouping taken from the research.
@@ -555,6 +565,11 @@ Things to preserve when editing:
   6.32:1 on the dark one. Do not shrink that heading below 18.66px without
   darkening the orange. In Windows High Contrast mode the winner gets an
   outline.
+- Charts are plain SVG drawn at build time (no JavaScript), named by a
+  visible summary through `aria-labelledby`, with their marks hidden from
+  assistive technology and the same numbers in a table. Meaning never
+  rests on color: bars and a dashed line differ in shape, and every value
+  is printed.
 - A check or an X beside a graded pick is a shape, not a color, and
   screen readers hear "Correct" or "Incorrect".
 - The Upset Alert is words plus a warning shape, not color alone, and its

@@ -440,6 +440,109 @@ a {
   color: var(--muted);
 }
 
+/* Charts. EdgeBoard's indigo for bars, the text color for the promise
+   line, each 3:1 or better against the card in both schemes (bars 7.9:1
+   light and 8.9:1 dark, the line 16:1 or better). Meaning never rests on
+   color: bars and a dashed line differ in shape, and every value is
+   printed and also in the table under "Show the numbers". */
+:root {
+  --chart-bar: #4338ca;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --chart-bar: #a5b4fc;
+  }
+}
+
+.chart {
+  margin: 1rem 0 0;
+  max-width: 36rem;
+}
+
+.chart figcaption {
+  font-weight: 600;
+}
+
+.chart-key {
+  font-size: 0.875rem;
+  color: var(--muted);
+  margin: 0.25rem 0;
+}
+
+.chart-key-bar,
+.chart-key-line {
+  display: inline-block;
+  width: 1.25rem;
+  vertical-align: middle;
+}
+
+.chart-key-bar {
+  height: 0.75rem;
+  background: var(--chart-bar);
+}
+
+.chart-key-line {
+  border-top: 2px dashed var(--text);
+}
+
+.confidence-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chart-bar {
+  fill: var(--chart-bar);
+}
+
+.chart-promise {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
+.chart-grid {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+}
+
+.chart-label,
+.chart-value {
+  fill: var(--text);
+  font-size: 12px;
+}
+
+.chart-value {
+  font-weight: 700;
+}
+
+/* Windows High Contrast: system colors keep every mark visible. */
+@media (forced-colors: active) {
+  .chart-bar {
+    fill: CanvasText;
+  }
+
+  .chart-key-bar {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  .chart-promise {
+    stroke: Highlight;
+  }
+
+  .chart-label,
+  .chart-value {
+    fill: CanvasText;
+  }
+}
+
+.chart-data {
+  margin-top: 0.5rem;
+}
+
 /* Pregame stat tables, folded away behind one "Full stats" toggle. */
 .full-stats {
   margin-top: 0.75rem;

@@ -691,3 +691,36 @@ test("track record: you against the market and the stats, by confidence, side, a
   assert.deepEqual(t.byConfidence.find((c) => c.confidence === 4), { confidence: 4, games: 2, right: 2, pct: 100 });
   assert.deepEqual([t.againstSpread.right, t.againstSpread.games], [2, 4]);
 });
+
+/* -------------------------------- charts ------------------------------- */
+
+test("confidence chart: bars match the record, empty levels have none, the promise runs 50% to 100%", async () => {
+  const C = await import("../lib/charts.mjs");
+  const levels = [
+    { confidence: 1, games: 0, right: 0, pct: null },
+    { confidence: 2, games: 2, right: 1, pct: 50 },
+    { confidence: 3, games: 22, right: 13, pct: 59.1 },
+    { confidence: 4, games: 4, right: 4, pct: 100 },
+    { confidence: 5, games: 0, right: 0, pct: null },
+  ];
+  const c = C.confidenceChart(levels);
+  const bar = (n) => c.bars.find((b) => b.confidence === n);
+  assert.equal(bar(1).has, false);
+  assert.equal(bar(1).value, "none");
+  assert.equal(bar(4).y, c.grid.find((g) => g.p === 100).y, "a 100% bar reaches the 100% line");
+  assert.equal(bar(2).y, c.grid.find((g) => g.p === 50).y, "a 50% bar reaches the 50% line");
+  assert.ok(c.valueY > c.axisY && c.countY > c.valueY, "values and counts sit below the bars, where nothing crosses them");
+  assert.ok(c.titleY <= c.height, "and inside the chart");
+  assert.equal(bar(3).count, "13 of 22");
+  const [first, , , , last] = c.promise.split(" ").map((p) => Number(p.split(",")[1]));
+  assert.equal(first, c.grid.find((g) => g.p === 50).y, "1 promises a coin flip");
+  assert.equal(last, c.grid.find((g) => g.p === 100).y, "5 promises a lock");
+  assert.equal(
+    C.confidenceSummary(levels),
+    "Confidence chart: you were right 50% at 2 (1 of 2), 59% at 3 (13 of 22), 100% at 4 (4 of 4). Your record climbs with your confidence, which is what a well-calibrated record does.",
+  );
+  assert.match(C.confidenceSummary(levels.map((l) => (l.confidence === 4 ? { ...l, pct: 25, right: 1 } : l))), /does not climb steadily/);
+  // One lucky pick at a low level does not decide the verdict.
+  const lucky = levels.map((l) => (l.confidence === 1 ? { ...l, games: 1, right: 1, pct: 100 } : l));
+  assert.match(C.confidenceSummary(lucky), /climbs with your confidence/);
+});
