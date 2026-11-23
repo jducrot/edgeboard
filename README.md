@@ -21,7 +21,9 @@ are working.
   than 5 minutes old, so an idle server makes no requests at all.
 - SQLite (better-sqlite3) stores your picks in `data/edgeboard.db` and
   lineup history in `data/history.db`. Both are created on first use and
-  never committed. Your picks never leave your computer.
+  never committed. Your picks stay on your computer unless you turn on
+  syncing (see "Using EdgeBoard on two computers"), which copies them to a
+  private GitHub repository of your own.
 
 ## Pages
 
@@ -125,20 +127,22 @@ each scored only from what its card would have shown before tip-off.
   conclusions drawn.
 
 The findings are worded from the data at build time, so the text never
-goes stale. Pregame cards carry two lines from this research: the Line
-check says whether the stats back the underdog or the favorite and how
-underdogs did in past games like that, and the Cohesion table says how
-big the gap is and how the more cohesive team did in past games with a gap
-that size. On a phone, the research tables scroll sideways inside a named,
+goes stale. Pregame cards use this research in three places: the Upset
+Alert and its reasons, each Line check flag that backs the underdog, and
+a line under the Cohesion table giving the gap's size and how the more
+cohesive team did in past games with a gap that size. A Line check with no
+alert ends with how underdogs did in past games where the stats backed the
+favorite. On a phone, the research tables scroll sideways inside a named,
 focusable box instead of breaking words.
 
 ## Data sources
 
 All free, with no API keys:
 
-- `site.api.espn.com`: scoreboards, game summaries, standings, injuries,
-  team schedules and rosters, player game logs, and news
-- `sports.core.api.espn.com`: betting odds, rosters, and coaches
+- `site.api.espn.com`: scoreboards, game summaries (box scores and win
+  probability), standings, injuries, team schedules and rosters, and
+  player game logs
+- `sports.core.api.espn.com`: betting odds
 
 Lineup history lives in `data/history.db`, separate from your picks so it
 can be deleted and rebuilt at any time. The server fills it in the
@@ -184,12 +188,31 @@ Windows unless Visual Studio is installed. Because that setting also skips
 npm's "pre" scripts, the Node version check lives in the server itself and
 in the `npm test` command.
 
+### Where to put it
+
+Keep the project in a plain folder in your home folder, such as
+`~/Developer/edgeboard` on a Mac or `C:\Users\<you>\Developer\edgeboard` on
+Windows. Avoid Documents and Desktop, which iCloud or OneDrive often sync:
+syncing the live picks database while EdgeBoard has it open can corrupt
+it. On Windows, also avoid `C:\Program Files`, where only administrators can
+write.
+
 ### Mac
 
 With [Homebrew](https://brew.sh/) (or use the nodejs.org installer):
 
 ```bash
-brew install node@22
+brew install node git
+```
+
+Get the code:
+
+```bash
+mkdir -p ~/Developer && cd ~/Developer
+```
+
+```bash
+git clone https://github.com/jducrot/edgeboard.git
 ```
 
 Then, in the `edgeboard` folder:
@@ -204,13 +227,28 @@ npm run dev
 
 ### Windows
 
-Install Node with the nodejs.org installer, or in PowerShell:
+Install Node and Git with their installers from nodejs.org and
+git-scm.com, or in PowerShell:
 
 ```powershell
 winget install OpenJS.NodeJS.LTS
 ```
 
-Close and reopen PowerShell, then, in the `edgeboard` folder:
+```powershell
+winget install Git.Git
+```
+
+Close and reopen PowerShell, then get the code:
+
+```powershell
+mkdir $HOME\Developer; cd $HOME\Developer
+```
+
+```powershell
+git clone https://github.com/jducrot/edgeboard.git
+```
+
+Then, in the `edgeboard` folder:
 
 ```powershell
 npm install
@@ -240,8 +278,9 @@ when you load a page more than 5 minutes after the last build, after every
 saved pick or note, and when you press "Refresh data now" in the footer.
 EdgeBoard works the same from any folder you start it in.
 
-After pulling code changes, stop the server with Ctrl+C and run
-`npm run dev` again. A running server keeps the old code in memory.
+To update: stop the server with Ctrl+C, run `git pull` and then
+`npm install`, and start it again with `npm run dev`. A running server
+keeps the old code in memory, so a restart is always needed.
 
 ### When something goes wrong
 
@@ -266,6 +305,12 @@ red error text:
   and run `npm install` again. If Windows says a file in `node_modules`
   cannot be removed, close any editor that has the folder open and try
   again.
+- **`git pull` says "You have unstaged changes" in `package-lock.json`.**
+  `npm install` rewrote that file slightly. Run `git status --short`: if
+  `package-lock.json` is the only file listed, discard the change with
+  `git checkout -- package-lock.json`, then pull and run `npm install`
+  again. If any other file is listed, look at it before discarding
+  anything.
 - **No internet on a brand-new copy.** EdgeBoard keeps running, shows a
   "No data yet" page, and tries again when you load a page.
 - **A refresh fails.** One line explains why, and the last pages built
@@ -416,7 +461,8 @@ data, so your real picks are never touched. They cover:
   pick saved on one appears on the other, an update flows back, newer
   edits win, and a game picked on both keeps the earlier pick with a note.
 - Backups, the spreadsheet export, old slate pages being removed, saves
-  made during a refresh, and the wordmark.
+  made during a refresh, the wordmark, installs that need no compiler,
+  and `npm run dev` opening the browser on each kind of computer.
 
 The tests need internet for live ESPN data. The offline tests simulate
 having none.
@@ -484,6 +530,10 @@ Things to preserve when editing:
   outline.
 - A check or an X beside a graded pick is a shape, not a color, and
   screen readers hear "Correct" or "Incorrect".
+- The Upset Alert is words plus a warning shape, not color alone, and its
+  red is 6.5:1 or better in both schemes. Line check flags and the alert
+  are native disclosures (`details` and `summary`), so they open from the
+  keyboard and announce their state with no JavaScript.
 - After saving a pick, the page returns to the pick summary on the same
   card. Invalid input gets a page that explains the problem and links
   back.
