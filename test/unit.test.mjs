@@ -11,13 +11,25 @@ import path from "node:path";
 // database. Each test file runs in its own process, so this stays local.
 const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "edgeboard-unit-"));
 process.env.EDGEBOARD_DATA_DIR = tmp;
-process.on("exit", () => rmSync(tmp, { recursive: true, force: true }));
+process.on("exit", () => {
+  // Windows refuses to delete a database file that is still open, so close
+  // the app's two databases first. (Opening one here to close it is harmless.)
+  for (const open of [getDb, historyDb]) {
+    try {
+      open().close();
+    } catch {
+      // Already closed, or never importable: nothing to release.
+    }
+  }
+  rmSync(tmp, { recursive: true, force: true });
+});
 
 const { wordmarkViolations, WORDMARK } = await import("../lib/wordmark.mjs");
 const { createBuildQueue } = await import("../lib/build-queue.mjs");
 const { csvCell, picksCsv } = await import("../lib/export.mjs");
 const { backupPicks } = await import("../lib/backup.mjs");
 const { insertPrediction, getDb } = await import("../lib/db.mjs");
+const { historyDb } = await import("../lib/history.mjs");
 
 test("wordmark: the exact form passes and every altered form is caught", () => {
   assert.deepEqual(wordmarkViolations(`Welcome to ${WORDMARK}.`), []);
