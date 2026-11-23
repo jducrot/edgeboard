@@ -35,6 +35,15 @@ Every game that has not started shows:
 - **The market**, in plain terms: the expected margin (the spread) and win
   probabilities with the bookmaker's cut removed. No total: it says
   nothing about who wins.
+- **Upset Potential**: the underdog's chance to win, as a number and a
+  word, such as "CHA 40%, High", next to the market's own estimate from
+  the moneylines. High is 40% or more, Moderate 25% to 40%, Low under 25%.
+  It is fitted to past games: mostly the spread (three in four upsets come
+  at spreads under 7 points), nudged by whether the Line check's stats
+  pick the underdog and how many of the 13 stats favor it. "Why this
+  number" lists each piece and says plainly that most upsets are decided
+  by a shooting night no stat can see coming, so even High means the
+  favorite usually wins.
 - **Line check**, laid out for scanning:
   - An **Upset Alert** at the top when the stats pick the market's
     underdog to win, or when at least 7 of the card's 13 counted stats
@@ -97,7 +106,9 @@ your team won. Overtime games add a
 turning point, the box-score factors that decided it, and key
 performances) and **Was it predictable?**, which lists the signals that
 pointed each way before the game. This text is computed from the box score
-and the pregame line, and says so. A postponed or canceled game shows
+and the pregame line, and says so. When the underdog won, an "An upset"
+line compares both teams' 3-point shooting with their own season averages
+and says whether a shooting night decided it. A postponed or canceled game shows
 ESPN's status (for example "Postponed") and is never treated as played.
 
 **Review** (`/review/`): first, **Your track record**: how often you were
@@ -131,6 +142,11 @@ each scored only from what its card would have shown before tip-off.
   usual", "More than usual, but could be chance", "About the usual rate"),
   with tables for how many of the card's 13 stats backed the underdog and
   for upsets by spread size.
+- **Anatomy of an upset.** What underdogs actually did in the games they
+  won: how often they out-shot the favorite, rebounded and protected the
+  ball better, how far their 3-point shooting ran above their own average
+  (and the favorite's below), how close upsets were, and how many came at
+  small spreads.
 - **Watch list: ideas still being tested.** Popular betting ideas
   (fatigue from 3 games in 4 nights or 4 in 6, bouncing back from a
   15-point loss, rolling after a 15-point win, winning and losing streaks,
@@ -457,6 +473,10 @@ data, so your real picks are never touched. They cover:
   since your pick.
 - WCAG 2.2 A and AA with axe in light and dark schemes, and reflow at
   320px.
+- Upset Potential: the fitted model recovers a known rule, the word
+  matches the number shown, and every pregame card with a spread shows it
+  with its reasons. The anatomy counts battles and judges shooting nights
+  against each team's own average.
 - The pick form: no confidence is chosen for you, the browser and the
   server both refuse a pick without one, and there is no margin field.
 - Your track record: you against the market and the stats on the same

@@ -724,3 +724,55 @@ test("confidence chart: bars match the record, empty levels have none, the promi
   const lucky = levels.map((l) => (l.confidence === 1 ? { ...l, games: 1, right: 1, pct: 100 } : l));
   assert.match(C.confidenceSummary(lucky), /climbs with your confidence/);
 });
+
+/* ---------------------------- upset potential -------------------------- */
+
+test("Upset Potential: the model fits, the tier follows the number shown, and the reasons say why", async () => {
+  const { tierOf, upsetPotential } = await import("../lib/potential.mjs");
+  // Logistic fitting recovers a known rule from data made with it.
+  const X = [];
+  const y = [];
+  for (let i = 0; i < 4000; i++) {
+    const x = (i % 20) / 2;
+    const p = 1 / (1 + Math.exp(-(0.5 - 0.2 * x)));
+    X.push([1, x]);
+    y.push(((i * 7919) % 1000) / 1000 < p ? 1 : 0);
+  }
+  const [a, b] = P.fitLogistic(X, y);
+  assert.ok(Math.abs(a - 0.5) < 0.15 && Math.abs(b + 0.2) < 0.05, `fitted ${a.toFixed(2)}, ${b.toFixed(2)}`);
+
+  assert.deepEqual([tierOf(40), tierOf(39), tierOf(25), tierOf(24)], ["High", "Moderate", "Moderate", "Low"]);
+  const study = { usualAt: () => 39.6, potentialAt: () => 39.7 };
+  const up = upsetPotential({ study, spread: 3.5, statsPickDog: false, backing: 2, total: 13, dog: "CHA", fav: "MEM", marketDogPct: 41 });
+  assert.deepEqual([up.pct, up.tier], [40, "High"], "40% shown is never called Moderate");
+  assert.match(up.reasons[0], /^The spread: MEM by 3\.5\. Underdogs at this spread have won about 40%/);
+  assert.match(up.reasons.join(" "), /The Line check's stats pick MEM, the favorite/);
+  assert.match(up.reasons.join(" "), /2 of the 13 counted stats favor CHA/);
+  assert.match(up.reasons.join(" "), /market's own estimate, from the moneylines: 41%\. About the same/);
+  assert.match(up.reasons.at(-1), /a chance, not a call/);
+  assert.equal(upsetPotential({ study, spread: 0, dog: "A", fav: "B" }), null, "no spread, no estimate");
+});
+
+test("anatomy: battles and shooting nights are counted from each team's own average", async () => {
+  const A = await import("../lib/anatomy.mjs");
+  const team = (fgm, fga, tpm, tpa, o = {}) => ({ fgm, fga, tpm, tpa, fta: 20, orb: 10, drb: 30, tov: 12, pts: 100, ...o });
+  const s = A.shootingVsUsual(team(40, 85, 15, 33), team(38, 88, 8, 32), { tpm: 120, tpa: 360 }, { tpm: 130, tpa: 350 });
+  assert.equal(Math.round(s.dogDelta), 12, "45% against a 33% season");
+  assert.equal(Math.round(s.favDelta), -12, "25% against a 37% season");
+  const both = A.shootingNightLine({ dogAbbr: "NY", favAbbr: "POR", s });
+  assert.match(both[1], /^A shooting night at both ends decided it/);
+  const coldOnly = A.shootingNightLine({ dogAbbr: "SAC", favAbbr: "BOS", s: { ...s, dogDelta: -8 } });
+  assert.match(coldOnly[1], /^BOS's cold shooting night/);
+  const none = A.shootingNightLine({ dogAbbr: "ATL", favAbbr: "DET", s: { ...s, dogDelta: -5, favDelta: -2 } });
+  assert.match(none[1], /not a shooting night/);
+  assert.equal(A.shootingVsUsual(team(1, 2, 1, 2), team(1, 2, 1, 2), { tpm: 10, tpa: 30 }, null).dogDelta, null, "too few attempts to judge");
+
+  const row = (won, shot, margin, spread) => ({ won, shot, threes: shot, tov: !shot, orb: !shot, reb: false, fta: false, margin, spread, s: { dogDelta: won ? 4 : -2, favDelta: won ? -3 : 1 } });
+  const a = A.summarize([row(true, true, 4, 3), row(true, false, 12, 8), row(false, false, -9, 5), row(false, true, -2, 2)]);
+  assert.deepEqual([a.games, a.upsets], [4, 2]);
+  assert.equal(a.battles[0].inUpsets, 50);
+  assert.equal(a.battles[0].winWhenWon, 50, "won 1 of the 2 games it out-shot");
+  assert.equal(a.withoutShooting, 1);
+  assert.equal(a.closeWithin5, 50);
+  assert.equal(a.swingInUpsets, 100);
+});

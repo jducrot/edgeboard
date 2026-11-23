@@ -543,6 +543,25 @@ a {
   margin-top: 0.5rem;
 }
 
+/* Upset Potential: a plain stat line. The tier is a word (High, Moderate,
+   Low), outlined so the eye finds it, never shown by color alone. */
+.upset-potential {
+  margin-top: 0.75rem;
+}
+
+.up-stat {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.up-tier {
+  display: inline-block;
+  padding: 0 0.375rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  font-weight: 700;
+}
+
 /* Pregame stat tables, folded away behind one "Full stats" toggle. */
 .full-stats {
   margin-top: 0.75rem;

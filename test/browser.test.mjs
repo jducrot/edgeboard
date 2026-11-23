@@ -254,6 +254,7 @@ test("insights: the upset study shows, and every table is labelled", async (t) =
   const headings = await page.locator("h2").allTextContents();
   assert.deepEqual(headings, [
     "What flags an upset?",
+    "Anatomy of an upset",
     "Watch list: ideas still being tested",
     "Does the Line check's verdict beat the spread?",
     "Does cohesion help?",
@@ -299,6 +300,14 @@ test("Line check: flags by side open from the keyboard, and any Upset Alert says
       }
       // The card that holds this Line check folds its stat tables and shows no total.
       const card = lc.locator("xpath=ancestor::article[1]");
+      // Upset Potential: a number and a matching word, with its reasons.
+      const up = card.locator("section.upset-potential");
+      assert.equal(await up.count(), 1, "every card with a spread shows Upset Potential");
+      const m = /^Upset Potential: [A-Z]+ (\d+)%, (High|Moderate|Low)/.exec((await up.locator(".up-stat").textContent()).trim());
+      assert.ok(m, "a number and a word");
+      const pctShown = Number(m[1]);
+      assert.equal(m[2], pctShown >= 40 ? "High" : pctShown >= 25 ? "Moderate" : "Low", "the word matches the number shown");
+      assert.ok((await up.locator("details li").count()) >= 5, "the reasons are listed");
       assert.equal(await card.locator("details.full-stats table").count() >= 1, true, "the tables sit inside Full stats");
       assert.equal(await card.locator("table").count(), await card.locator("details.full-stats table").count(), "no table outside Full stats");
       assert.doesNotMatch(await card.locator(".fact-list").first().textContent(), /Total/, "no total on a pregame card");

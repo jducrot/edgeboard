@@ -3,6 +3,30 @@
 
 import { cohesionIndex, cohesionBacktest } from "../../lib/cohesion.mjs";
 import { predictorStudy, verdicts, BREAK_EVEN, SIGNALS } from "../../lib/predictors.mjs";
+import { upsetAnatomy } from "../../lib/anatomy.mjs";
+
+function anatomySection() {
+  const a = upsetAnatomy();
+  if (!a.upsets) return null;
+  const p0 = (n) => (n == null ? "–" : `${n.toFixed(0)}%`);
+  const pts = (n) => (n == null ? "–" : `${Math.abs(n).toFixed(1)} points`);
+  return {
+    games: count(a.games),
+    upsets: count(a.upsets),
+    battles: a.battles.map((b) => ({ label: b.label, inUpsets: p0(b.inUpsets), inLosses: p0(b.inLosses), winWhenWon: p0(b.winWhenWon) })),
+    shotInUpsets: p0(a.battles[0].inUpsets),
+    dogAbove: pts(a.dogAboveUsual),
+    favBelow: pts(a.favBelowUsual),
+    swingInUpsets: p0(a.swingInUpsets),
+    swingInLosses: p0(a.swingInLosses),
+    withoutShooting: count(a.withoutShooting),
+    withoutShootingTov: p0(a.withoutShootingTov),
+    withoutShootingOrb: p0(a.withoutShootingOrb),
+    within5: p0(a.closeWithin5),
+    within10: p0(a.closeWithin10),
+    under7: p0(a.under7),
+  };
+}
 
 const pct = (n) => (n === null || n === undefined ? "–" : `${n.toFixed(1)}%`);
 const range = (lo, hi) => (lo === null || lo === undefined ? "–" : `${lo.toFixed(1)} to ${hi.toFixed(1)}%`);
@@ -136,7 +160,7 @@ export default function () {
     const index = cohesionIndex();
     if (index.gamesCovered === 0) return { cohesion: null, predictors: null };
     const study = predictorStudy();
-    return { cohesion: cohesionSection(index, study), predictors: predictorSection(study) };
+    return { cohesion: cohesionSection(index, study), predictors: predictorSection(study), anatomy: anatomySection() };
   } catch {
     return { cohesion: null, predictors: null };
   }

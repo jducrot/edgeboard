@@ -118,6 +118,43 @@ navCurrent: insights
   </ul>
 </section>
 
+{% if insights.anatomy %}
+{% set a = insights.anatomy %}
+<section aria-labelledby="anatomy-heading" class="card insight">
+  <h2 id="anatomy-heading">Anatomy of an upset</h2>
+  <p>What underdogs actually did in the {{ a.upsets }} games they won, out of {{ a.games }} with a pregame line. This explains upsets after the fact. Most of it cannot be seen before tip-off.</p>
+  <ul class="fact-list">
+    <li><strong>Upsets are shooting nights.</strong> The underdog out-shot the favorite in {{ a.shotInUpsets }} of upsets. Against each team's own season average, upset underdogs made {{ a.dogAbove }} more of their 3s, and the favorites they beat made {{ a.favBelow }} fewer. Both happened in the same game in {{ a.swingInUpsets }} of upsets, against {{ a.swingInLosses }} of games the underdog lost.</li>
+    <li><strong>The rest are won on extra possessions.</strong> In the {{ a.withoutShooting }} upsets where the underdog did not out-shoot the favorite, it had fewer turnovers in {{ a.withoutShootingTov }} and better offensive rebounding in {{ a.withoutShootingOrb }}.</li>
+    <li><strong>Upsets are close, and come at small spreads.</strong> {{ a.within5 }} were won by 5 points or fewer and {{ a.within10 }} by 10 or fewer. {{ a.under7 }} came when the spread was under 7 points.</li>
+    <li><strong>What this means for picking:</strong> an upset is mostly a close game decided by a shooting night no stat can see coming. That is why each pregame card's Upset Potential rests mostly on the spread, and why finished upset cards say whether the upset was a shooting night.</li>
+  </ul>
+  <div class="table-scroll" role="region" aria-labelledby="t-anatomy" tabindex="0">
+  <table>
+    <caption id="t-anatomy">How often the underdog won each battle</caption>
+    <thead>
+      <tr>
+        <th scope="col">The underdog</th>
+        <th scope="col">In upsets</th>
+        <th scope="col">When it lost</th>
+        <th scope="col">Its win rate when it did this</th>
+      </tr>
+    </thead>
+    <tbody>
+      {%- for b in a.battles %}
+      <tr>
+        <th scope="row">{{ b.label }}</th>
+        <td>{{ b.inUpsets }}</td>
+        <td>{{ b.inLosses }}</td>
+        <td>{{ b.winWhenWon }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
 {% if p.watch %}
 <section aria-labelledby="watch-heading" class="card insight">
   <h2 id="watch-heading">Watch list: ideas still being tested</h2>

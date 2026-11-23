@@ -58,6 +58,20 @@ eleventyComputed:
 
       {% if game.lineCheck %}
       {% set lc = game.lineCheck %}
+      {% if lc.potential %}
+      {% set up = lc.potential %}
+      <section aria-label="Upset Potential: {{ game.heading }}" class="upset-potential">
+        <p class="up-stat"><strong>Upset Potential:</strong> {{ up.dog }} {{ up.pct }}%, <span class="up-tier">{{ up.tier }}</span>{% if up.market != null %} <span class="muted">(market: {{ up.market }}%)</span>{% endif %}</p>
+        <details class="lc-more">
+          <summary>Why this number</summary>
+          <ul class="fact-list">
+            {%- for r in up.reasons %}
+            <li>{{ r }}</li>
+            {%- endfor %}
+          </ul>
+        </details>
+      </section>
+      {% endif %}
       <section aria-label="Line check: {{ game.heading }}" class="linecheck">
         <h3>Line check</h3>
         {% if lc.alert %}
@@ -162,6 +176,7 @@ eleventyComputed:
         </ul>
         {% endif %}
         {% if game.recap.performers %}<p>{{ game.recap.performers }}</p>{% endif %}
+        {% if game.upsetShooting %}<p><strong>An upset.</strong> {{ game.upsetShooting | join(" ") }}</p>{% endif %}
         {% if game.knowable or game.recap.surprise.length %}
         <h4>Was it predictable?</h4>
         {% if game.knowable %}<p>{{ game.knowable }}</p>{% endif %}

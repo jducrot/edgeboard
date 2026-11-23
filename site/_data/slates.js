@@ -21,6 +21,8 @@ import { cohesionIndex, lineupCohesion, cohesionBacktest, cohesionNote } from ".
 import { predictorStudy, lineCheckNote } from "../../lib/predictors.mjs";
 import { sideFlags, withHistory, upsetAlert, rankFlags, COUNTED_TOTAL } from "../../lib/flags.mjs";
 import { watchFlags } from "../../lib/watchlist.mjs";
+import { upsetPotential } from "../../lib/potential.mjs";
+import { upsetShootingLine } from "../../lib/anatomy.mjs";
 import { lineCheck } from "../../lib/linecheck.mjs";
 import { teamAnalytics } from "../../lib/teamstats.mjs";
 
@@ -124,8 +126,15 @@ function rankRows(ranks, awayId, homeId) {
 }
 
 /** Cohesion of each team's projected five, as table rows. */
+/** Which side the closing line favored ("home", "away"), or null. */
+async function closingFavorite(odds, g) {
+  const m = /^([A-Z]{2,4})\s*-([\d.]+)$/.exec(odds?.details ?? "");
+  if (!m) return null;
+  return m[1] === g.home.abbreviation ? "home" : m[1] === g.away.abbreviation ? "away" : null;
+}
+
 /** The Line check laid out for scanning: alert, margins, flags by side, then detail. */
-function lineCheckView(check, g, { form, rest, awayStats, homeStats, awayStarters, homeStarters, cohesion, study, cohesionStudy, ranks }) {
+function lineCheckView(check, g, { form, rest, awayStats, homeStats, awayStarters, homeStarters, cohesion, study, cohesionStudy, ranks, odds }) {
   const pair = (team, starters) =>
     cohesion ? (lineupCohesion(cohesion, team.id, starters?.map((s) => s.id))?.pairAvg ?? null) : null;
   const side = (team, stats, starters) => ({
@@ -172,8 +181,26 @@ function lineCheckView(check, g, { form, rest, awayStats, homeStats, awayStarter
     counted: flags.filter((f) => f.side === key && f.counted).length,
     total: COUNTED_TOTAL,
   });
+  // The market's own chance for the underdog, with the bookmaker's cut removed.
+  const pA = impliedProb(odds?.awayMoneyline);
+  const pH = impliedProb(odds?.homeMoneyline);
+  const marketDogPct =
+    underdog && pA !== null && pH !== null && pA + pH > 0 ? (100 * (underdog === "away" ? pA : pH)) / (pA + pH) : null;
+  const potential = underdog
+    ? upsetPotential({
+        study,
+        spread: Math.abs(check.marketHome),
+        statsPickDog: (check.statsHome > 0 ? "home" : "away") === underdog,
+        backing: flags.filter((f) => f.counted && f.side === underdog).length,
+        total: COUNTED_TOTAL,
+        dog: abbr[underdog],
+        fav: abbr[underdog === "home" ? "away" : "home"],
+        marketDogPct,
+      })
+    : null;
   return {
     alert,
+    potential,
     market: check.market,
     stats: check.stats,
     verdict: check.verdict,
@@ -629,6 +656,7 @@ export default async function () {
 
       return {
         recap,
+        upsetShooting: isFinal && odds ? await closingFavorite(odds, g).then((fav) => upsetShootingLine(g, fav)).catch(() => null) : null,
         isFinal,
         notPlayed: g.statusState === "off",
         myPick: myRow ? pickView(myRow, g) : null,
@@ -655,6 +683,7 @@ export default async function () {
           study,
           cohesionStudy,
           ranks: leagueRanks,
+          odds,
         }) : null,
         analyticsRows: g.statusState === "pre" ? analyticsRows(awayStats, homeStats) : null,
         rankRows: g.statusState === "pre"
