@@ -569,3 +569,14 @@ test("Upset Alert: raised when the stats pick the underdog or 7 of the 13 stats 
   // No line, no alert.
   assert.equal(F.upsetAlert({ flags: counted(9, "away"), statsHome: -3, marketHome: 0, abbr }), null);
 });
+
+test("npm run dev opens the browser on Mac, Windows, and Linux, and only npm run dev does", async () => {
+  const { openCommand } = await import("../lib/open-browser.mjs");
+  const url = "http://localhost:3000";
+  assert.deepEqual(openCommand("darwin", url), ["open", [url]]);
+  assert.deepEqual(openCommand("win32", url), ["cmd", ["/c", "start", "", url]]);
+  assert.deepEqual(openCommand("linux", url), ["xdg-open", [url]]);
+  const { scripts } = JSON.parse(await fs.readFile(new URL("../package.json", import.meta.url), "utf8"));
+  assert.match(scripts.dev, /--open/);
+  assert.doesNotMatch(scripts.start, /--open/, "npm start and the tests never open a browser");
+});

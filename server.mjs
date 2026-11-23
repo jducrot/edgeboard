@@ -36,6 +36,7 @@ import { backupPicks } from "./lib/backup.mjs";
 import { picksCsv } from "./lib/export.mjs";
 import { CACHE_DIR, DATA_DIR, OUT_DIR, ROOT } from "./lib/paths.mjs";
 import { syncPicks } from "./lib/picksync.mjs";
+import { openBrowser } from "./lib/open-browser.mjs";
 
 // Eleventy finds its config and the site folder relative to the current
 // folder, so work from the app's own folder wherever it was started from.
@@ -757,6 +758,12 @@ const window =
     ? `${Math.round(STALE_AFTER_MS / 60_000)} minutes`
     : `${Math.round(STALE_AFTER_MS / 1000)} seconds`;
 console.log(`Pages refresh on visit when older than ${window}, or use the Refresh button.`);
+
+// `npm run dev` passes --open. Pages not built yet are fine: the browser's
+// request waits for the first build.
+if (process.argv.includes("--open") && process.env.EDGEBOARD_NO_OPEN !== "1") {
+  openBrowser(`http://localhost:${PORT}`);
+}
 
 backupInBackground();
 

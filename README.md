@@ -232,7 +232,9 @@ sooner, run `Remove-Item Env:NAME`.
 
 ### Once it is running
 
-Open http://localhost:3000. The pages build on first start (about 10
+`npm run dev` opens http://localhost:3000 in your default browser once the
+server is ready (`npm start` does not). To turn that off, set
+`EDGEBOARD_NO_OPEN=1`. The pages build on first start (about 10
 seconds with an empty cache, about 1 second after that). Then they rebuild
 when you load a page more than 5 minutes after the last build, after every
 saved pick or note, and when you press "Refresh data now" in the footer.
@@ -281,6 +283,7 @@ All optional.
 | `EDGEBOARD_STALE_MS` | How old pages can get before a visit rebuilds them, in milliseconds | `300000` (5 minutes) |
 | `EDGEBOARD_BACKUP_DIR` | Where daily backups go | `data/backups` |
 | `EDGEBOARD_DEBUG` | Set to `1` to print full error details | off |
+| `EDGEBOARD_NO_OPEN` | Set to `1` so `npm run dev` does not open a browser tab | off |
 | `HOST` and `EDGEBOARD_ALLOWED_HOSTS` | Open EdgeBoard to your network (see Security) | this computer only |
 | `EDGEBOARD_DATA_DIR`, `EDGEBOARD_OUT_DIR`, `EDGEBOARD_CACHE_DIR` | Move the data, built pages, and download cache | `data`, `_site`, `.cache` |
 | `EDGEBOARD_NO_HISTORY_SYNC` | Set to `1` to skip the lineup history download | off |
