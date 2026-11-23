@@ -19,7 +19,7 @@ import { reconcileStartersAndInjuries } from "../../lib/lineup.mjs";
 import { compareToSnapshot } from "../../lib/changes.mjs";
 import { cohesionIndex, lineupCohesion, cohesionBacktest, cohesionNote } from "../../lib/cohesion.mjs";
 import { predictorStudy, lineCheckNote } from "../../lib/predictors.mjs";
-import { sideFlags, withHistory, upsetAlert, COUNTED_TOTAL } from "../../lib/flags.mjs";
+import { sideFlags, withHistory, upsetAlert, rankFlags, COUNTED_TOTAL } from "../../lib/flags.mjs";
 import { watchFlags } from "../../lib/watchlist.mjs";
 import { lineCheck } from "../../lib/linecheck.mjs";
 import { teamAnalytics } from "../../lib/teamstats.mjs";
@@ -125,7 +125,7 @@ function rankRows(ranks, awayId, homeId) {
 
 /** Cohesion of each team's projected five, as table rows. */
 /** The Line check laid out for scanning: alert, margins, flags by side, then detail. */
-function lineCheckView(check, g, { form, rest, awayStats, homeStats, awayStarters, homeStarters, cohesion, study }) {
+function lineCheckView(check, g, { form, rest, awayStats, homeStats, awayStarters, homeStarters, cohesion, study, cohesionStudy, ranks }) {
   const pair = (team, starters) =>
     cohesion ? (lineupCohesion(cohesion, team.id, starters?.map((s) => s.id))?.pairAvg ?? null) : null;
   const side = (team, stats, starters) => ({
@@ -135,11 +135,22 @@ function lineCheckView(check, g, { form, rest, awayStats, homeStats, awayStarter
     rest: rest.get(team.id) ?? null,
     pair: pair(team, starters),
     replaced: starters ? starters.filter((s) => s.projected).length : null,
+    rank: ranks?.get(team.id) ?? null,
   });
   const underdog = check.marketHome > 0 ? "away" : check.marketHome < 0 ? "home" : null;
   const flags = [
     ...withHistory(
-      sideFlags({ away: side(g.away, awayStats, awayStarters), home: side(g.home, homeStats, homeStarters) }),
+      sideFlags({
+        away: side(g.away, awayStats, awayStarters),
+        home: side(g.home, homeStats, homeStarters),
+        cohesionNote: (() => {
+          const a = pair(g.away, awayStarters);
+          const h = pair(g.home, homeStarters);
+          return a != null && h != null
+            ? cohesionNote(cohesionStudy, { abbr: g.away.abbreviation, pair: a }, { abbr: g.home.abbreviation, pair: h })
+            : null;
+        })(),
+      }),
       underdog,
       study,
     ),
@@ -150,11 +161,14 @@ function lineCheckView(check, g, { form, rest, awayStats, homeStats, awayStarter
   ];
   const abbr = { away: g.away.abbreviation, home: g.home.abbreviation };
   const alert = upsetAlert({ flags, statsHome: check.statsHome, marketHome: check.marketHome, abbr, study });
+  const ranked = rankFlags(flags, study);
   const column = (key, role) => ({
     abbr: abbr[key],
     role,
     underdog: underdog === key,
     flags: flags.filter((f) => f.side === key),
+    strong: ranked.filter((f) => f.side === key && !f.weak),
+    weak: ranked.filter((f) => f.side === key && f.weak),
     counted: flags.filter((f) => f.side === key && f.counted).length,
     total: COUNTED_TOTAL,
   });
@@ -347,17 +361,8 @@ function oddsLine(odds, game, isFinal = false, awayStats = null, homeStats = nul
   } else {
     items.push("No spread posted");
   }
-  // The bare total is noise; show it only with our own pace-and-efficiency
-  // projection next to it, so disagreement with the market is visible.
-  if (odds.overUnder !== null && awayStats && homeStats) {
-    const poss = (awayStats.pace + homeStats.pace) / 2;
-    const proj =
-      (poss * (awayStats.ortg + homeStats.ortg + awayStats.drtg + homeStats.drtg)) / 200;
-    const diff = proj - odds.overUnder;
-    const lean =
-      diff >= 4 ? "stats lean over" : diff <= -4 ? "stats lean under" : "in line with the stats";
-    items.push(`Total: ${odds.overUnder} (pace and efficiency project about ${Math.round(proj)}, ${lean})`);
-  }
+  // No total: it says nothing about who wins, and the research never found
+  // a use for it.
 
   // Devigged win probabilities from the moneylines, instead of raw prices.
   const pA = impliedProb(odds.awayMoneyline);
@@ -648,6 +653,8 @@ export default async function () {
           homeStarters: homeStartersList,
           cohesion,
           study,
+          cohesionStudy,
+          ranks: leagueRanks,
         }) : null,
         analyticsRows: g.statusState === "pre" ? analyticsRows(awayStats, homeStats) : null,
         rankRows: g.statusState === "pre"

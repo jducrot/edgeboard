@@ -33,9 +33,8 @@ tomorrow.
 Every game that has not started shows:
 
 - **The market**, in plain terms: the expected margin (the spread) and win
-  probabilities with the bookmaker's cut removed. The total appears only
-  next to EdgeBoard's own pace-and-efficiency projection, because a bare
-  total says nothing about who wins.
+  probabilities with the bookmaker's cut removed. No total: it says
+  nothing about who wins.
 - **Line check**, laid out for scanning:
   - An **Upset Alert** at the top when the stats pick the market's
     underdog to win, or when at least 7 of the card's 13 counted stats
@@ -45,25 +44,27 @@ Every game that has not started shows:
   - The market's margin and the stats margin side by side, then a
     one-line verdict.
   - Two columns, "Favors DAL" and "Favors CLE", each with a count out of
-    the 13 stats and one- or two-word flags (Record, Net rating, Defense,
-    Rested, Cohesion, Healthier, and so on). Each flag opens to show the
-    numbers behind it, and a flag that backs the underdog also shows how
-    that stat did at spotting upsets. Home court is shown but not counted.
+    the 13 stats and one- or two-word flags, strongest first by how well
+    each picked winners in the research. Flags that picked winners less
+    than 58% of the time with no lean toward upsets (today 3-point %,
+    Rested, Turnovers, and Home court) are grouped after a "Weak:"
+    label; the grouping follows the data as it grows. Each flag opens to
+    show the numbers behind it, including league ranks and the cohesion
+    gap where they apply, and a flag that backs the underdog also shows
+    how that stat did at spotting upsets. Home court is shown but not
+    counted.
   - "How the stats number is built" and any uncertain players, folded
     away until opened. The stats number uses last-10 net ratings scaled
     for pace (or season scoring margins early on), +2.5 for home court,
     -2 for a back-to-back, and -3 for each fresh key absence, capped at
     -6.
-- **Matchup table**: records, each offense against the other team's
-  defense (already subtracted, so no math is needed), last 10 and streak,
-  and rest.
-- **League rank** over the last 10 games, 1st to 30th, in offense,
-  defense, rebounding, and 3-point shooting.
-- **Cohesion**: how long each projected starting five has played
-  together, from a lineup history covering last season and this one.
-- **Last 10 analytics**: pace, offensive and defensive ratings, effective
-  shooting, turnovers, offensive rebounding, free throw rate, and the
-  3-point profile.
+- **Full stats**, folded away until opened: the matchup table (records,
+  each offense against the other team's defense, last 10 and streak,
+  rest), league ranks over the last 10 games, the cohesion table, and the
+  last-10 analytics (pace, ratings, shooting, turnovers, rebounding, free
+  throw rate, and the 3-point profile). The Line check flags already carry
+  the numbers that matter, so these are reference. Finished games keep
+  their tables open.
 - **Starters**, always shown: a projected five, ranked from the last five
   games with recent starts weighted most. Starters listed Out are replaced
   by the next healthy players, marked as projected, so every team shows
@@ -443,6 +444,9 @@ data, so your real picks are never touched. They cover:
   since your pick.
 - WCAG 2.2 A and AA with axe in light and dark schemes, and reflow at
   320px.
+- Streamlined cards: pregame stat tables sit inside "Full stats", no
+  total is shown, flags run strongest first, and weak flags follow a
+  "Weak:" label, with the grouping taken from the research.
 - The Line check: flags land on the side they favor (lower is better for
   defense and starters missing), home court is not counted, the Upset
   Alert fires on either rule and not otherwise, flags open from the

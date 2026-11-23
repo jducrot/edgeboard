@@ -635,3 +635,23 @@ test("watch list: card flags appear only for ideas that earned them, on the side
   assert.equal(homeDog.pick({ homeLine: -3.5 }), "home");
   assert.equal(homeDog.pick({ homeLine: 3.5 }), null);
 });
+
+test("flags: strongest first, and the weak ones follow the research", () => {
+  const study = {
+    winners: [
+      { key: "record", wonPct: 67.6 },
+      { key: "net", wonPct: 65.0 },
+      { key: "threes", wonPct: 54.4 },
+      { key: "turnovers", wonPct: 56.1 },
+      { key: "home", wonPct: 55.1 },
+    ],
+    upsetSignals: [{ key: "turnovers", z: 1.2 }],
+  };
+  const flags = ["threes", "net", "home", "record", "turnovers", "watch:afterRout"].map((key) => ({ key, side: "home" }));
+  const ranked = F.rankFlags(flags, study);
+  const strong = ranked.filter((f) => !f.weak).map((f) => f.key);
+  const weak = ranked.filter((f) => f.weak).map((f) => f.key);
+  assert.deepEqual(strong, ["watch:afterRout", "record", "net", "turnovers"], "a weak winner-picker with an upset lean stays");
+  assert.deepEqual(weak, ["home", "threes"]);
+  assert.deepEqual(F.rankFlags(flags, null).filter((f) => f.weak), [], "without research, nothing is called weak");
+});

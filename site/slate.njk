@@ -80,11 +80,21 @@ eleventyComputed:
           <div>
             <h4>Favors {{ col.abbr }} ({{ col.role }}{% if col.underdog %}, underdog{% endif %}): {{ col.counted }} of {{ col.total }} stats</h4>
             {% if col.flags.length %}
+            {% if col.strong.length %}
             <ul class="flags" role="list">
-              {%- for f in col.flags %}
+              {%- for f in col.strong %}
               <li><details class="flag"><summary>{{ f.label }}</summary><p>{{ f.detail }}</p></details></li>
               {%- endfor %}
             </ul>
+            {% endif %}
+            {% if col.weak.length %}
+            <p class="flags-weak-label">Weak:</p>
+            <ul class="flags" role="list">
+              {%- for f in col.weak %}
+              <li><details class="flag weak"><summary>{{ f.label }}</summary><p>{{ f.detail }}</p></details></li>
+              {%- endfor %}
+            </ul>
+            {% endif %}
             {% else %}
             <p class="muted">Nothing on the card.</p>
             {% endif %}
@@ -163,6 +173,9 @@ eleventyComputed:
       </section>
       {% endif %}
 
+      {# Pregame and live cards fold the stat tables away: the Line check flags carry
+         their numbers. Finished cards keep them open. #}
+      {% if not game.isFinal %}<details class="full-stats"><summary>Full stats</summary>{% endif %}
       <table>
         <caption class="visually-hidden">Season form comparison for {{ game.away.displayName }} and {{ game.home.displayName }}</caption>
         <thead>
@@ -268,6 +281,7 @@ eleventyComputed:
       </table>
       <p class="muted">Possession-adjusted, from each team's last 10 box scores. Opponent 3-point % is mostly luck and tends to regress.</p>
       {% endif %}
+      {% if not game.isFinal %}</details>{% endif %}
 
       {% if not game.isFinal %}
       <div class="injury-cols">

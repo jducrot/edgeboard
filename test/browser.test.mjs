@@ -232,6 +232,20 @@ test("Line check: flags by side open from the keyboard, and any Upset Alert says
       assert.equal(sides.length, 2, "one column per team");
       for (const h of sides) assert.match(h, /^Favors [A-Z]+ \((away|home)(, underdog)?\): \d+ of 13 stats$/);
       assert.match(await lc.locator(".lc-margins").textContent(), /Market.+Stats/s);
+      // Weak flags come after their label, never mixed in.
+      for (const col of await lc.locator(".lc-sides > div").all()) {
+        const order = await col.evaluate((el) =>
+          [...el.querySelectorAll(".flags-weak-label, details.flag")].map((n) => (n.matches(".flags-weak-label") ? "label" : n.matches(".weak") ? "weak" : "strong")),
+        );
+        const firstWeak = order.indexOf("weak");
+        if (firstWeak >= 0) assert.equal(order[firstWeak - 1] === "label" || order.slice(0, firstWeak).includes("label"), true, "a Weak: label leads the weak flags");
+        assert.ok(!order.slice(order.indexOf("label") + 1).includes("strong") || order.indexOf("label") < 0, "no strong flag after the Weak: label");
+      }
+      // The card that holds this Line check folds its stat tables and shows no total.
+      const card = lc.locator("xpath=ancestor::article[1]");
+      assert.equal(await card.locator("details.full-stats table").count() >= 1, true, "the tables sit inside Full stats");
+      assert.equal(await card.locator("table").count(), await card.locator("details.full-stats table").count(), "no table outside Full stats");
+      assert.doesNotMatch(await card.locator(".fact-list").first().textContent(), /Total/, "no total on a pregame card");
       const alert = lc.locator("details.upset-alert");
       if (await alert.count()) {
         assert.match(await alert.locator("summary").textContent(), /^Upset Alert: [A-Z]+$/);
