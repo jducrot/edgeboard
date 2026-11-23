@@ -58,9 +58,15 @@ test("a pick is saved in place, updated, and changes since it are flagged", asyn
 
   await page.goto(server.base + game.path, { waitUntil: "networkidle" });
   const form = page.locator(`form.predict-form:has(input[name=gameId][value="${game.gameId}"])`);
+  // No confidence is chosen for you, and there is no margin field.
+  assert.equal(await form.locator("select[name=confidence]").inputValue(), "", "no default confidence");
+  assert.equal(await form.locator("input[name=predictedMargin]").count(), 0, "no margin field");
   await form.locator("input[value=home]").check();
-  await form.locator("input[name=predictedMargin]").fill("6");
   await form.locator("textarea").fill("Test: home team has the rest edge");
+  // The browser itself refuses to submit without a confidence.
+  await form.locator("button[type=submit]").click();
+  assert.equal(new URL(page.url()).hash, "", "not submitted without a confidence");
+  await form.locator("select[name=confidence]").selectOption("4");
   await form.locator("button[type=submit]").click();
   await page.waitForLoadState("networkidle");
 
@@ -68,7 +74,7 @@ test("a pick is saved in place, updated, and changes since it are flagged", asyn
   assert.equal(url.pathname, game.path, "stays on the slate");
   assert.equal(url.hash, `#pick-${game.gameId}`, "returns to the game's card");
   const pick = page.locator(`#pick-${game.gameId}`);
-  assert.match(await pick.locator("p").first().textContent(), /^Your pick: .+ by 6 because Test: home team has the rest edge\.$/);
+  assert.match(await pick.locator("p").first().textContent(), /^Your pick: [^0-9]+ because Test: home team has the rest edge\.$/);
   const details = page.locator(`#game-${game.gameId} details.game-details`);
   assert.equal(await details.evaluate((d) => d.open), false, "details start collapsed");
 
@@ -77,12 +83,11 @@ test("a pick is saved in place, updated, and changes since it are flagged", asyn
   await page.keyboard.press("Enter");
   const update = details.locator('form[action="/predict/update"]');
   await update.locator("input[value=away]").check();
-  await update.locator("input[name=predictedMargin]").fill("");
+  assert.equal(await update.locator("select[name=confidence]").inputValue(), "4", "the update form keeps your confidence");
   await update.locator("textarea").fill("Test update: road team is healthier");
   await update.locator("button[type=submit]").click();
   await page.waitForLoadState("networkidle");
   assert.match(await pick.locator("p").first().textContent(), /because Test update: road team is healthier\.$/);
-  assert.doesNotMatch(await pick.locator("p").first().textContent(), / by \d+ because/, "margin cleared");
 
   // Simulate the line moving after the pick, then refresh.
   const db = new Database(path.join(sandbox.data, "edgeboard.db"));

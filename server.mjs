@@ -414,7 +414,6 @@ function parsePickForm(form) {
   const gameId = form.get("gameId").trim();
   const slateDate = form.get("slateDate").trim();
   const pick = form.get("pick");
-  const marginRaw = form.get("predictedMargin").trim();
   const confidence = Number(form.get("confidence"));
   const reasoning = form.get("reasoning").trim();
 
@@ -426,7 +425,7 @@ function parsePickForm(form) {
     return { values, error: "Choose which team you expect to win." };
   }
   if (!Number.isInteger(confidence) || confidence < 1 || confidence > 5) {
-    return { values, error: "Confidence must be between 1 and 5." };
+    return { values, error: "Choose your confidence, from 1 (coin flip) to 5 (lock)." };
   }
   if (reasoning.length < 10) {
     return {
@@ -434,13 +433,8 @@ function parsePickForm(form) {
       error: "Write at least a sentence of reasoning. Future you needs it for the retrospective.",
     };
   }
-  if (marginRaw !== "") {
-    const m = Number(marginRaw);
-    if (!Number.isInteger(m) || m < 1 || m > 60) {
-      return { values, error: "Predicted margin must be a whole number between 1 and 60." };
-    }
-    values.predictedMargin = m;
-  }
+  // No margin field any more: predictedMargin stays null. Older picks
+  // keep the margin they were saved with until they are updated.
   return { values };
 }
 

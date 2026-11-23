@@ -655,3 +655,39 @@ test("flags: strongest first, and the weak ones follow the research", () => {
   assert.deepEqual(weak, ["home", "threes"]);
   assert.deepEqual(F.rankFlags(flags, null).filter((f) => f.weak), [], "without research, nothing is called weak");
 });
+
+/* ---------------------------- track record ----------------------------- */
+
+test("track record: you against the market and the stats, by confidence, side, and spread", async () => {
+  const { trackRecord } = await import("../lib/trackrecord.mjs");
+  // CLE (home) favored by 5. The snapshot's stats lean CLE too.
+  const snap = JSON.stringify({
+    game: { home: { abbreviation: "CLE" }, away: { abbreviation: "DAL" } },
+    homeStats10: { net: 5, pace: 100 },
+    awayStats10: { net: 0, pace: 100 },
+  });
+  const pick = (pickSide, confidence, home, away) => ({
+    pick: pickSide, confidence, line_at_prediction: "CLE -5", snapshot_json: snap,
+    reconciled_at_utc: "x", final_home_score: home, final_away_score: away,
+    pick_correct: (pickSide === "home") === home > away ? 1 : 0,
+  });
+  const t = trackRecord(
+    [
+      pick("home", 4, 110, 100), // favorite, right, covers 10 > 5
+      pick("home", 4, 103, 100), // favorite, right, does not cover
+      pick("away", 2, 100, 104), // underdog, right
+      pick("away", 3, 110, 99), // underdog, wrong
+      { ...pick("home", 5, 0, 0), reconciled_at_utc: null }, // not graded yet
+    ],
+    { usualAt: (spread) => (spread === 5 ? 36 : 0) },
+  );
+  assert.equal(t.graded, 4);
+  assert.deepEqual([t.you.right, t.you.games], [3, 4]);
+  assert.deepEqual([t.market.right, t.market.games], [3, 4], "CLE won 3 of the 4");
+  assert.deepEqual([t.stats.right, t.stats.games], [3, 4]);
+  assert.deepEqual([t.favorite.right, t.favorite.games, t.underdog.right, t.underdog.games], [2, 2, 1, 2]);
+  assert.equal(t.underdog.usualPct, 36);
+  assert.deepEqual([t.home.games, t.away.games], [2, 2]);
+  assert.deepEqual(t.byConfidence.find((c) => c.confidence === 4), { confidence: 4, games: 2, right: 2, pct: 100 });
+  assert.deepEqual([t.againstSpread.right, t.againstSpread.games], [2, 4]);
+});

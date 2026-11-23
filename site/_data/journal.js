@@ -2,6 +2,33 @@
 // every prediction with display fields precomputed for the template.
 
 import { getScoreboard } from "../../lib/espn.mjs";
+import { trackRecord } from "../../lib/trackrecord.mjs";
+import { predictorStudy } from "../../lib/predictors.mjs";
+
+/** The track record, worded and formatted for the Review page. */
+function trackView(t) {
+  if (t.graded === 0) return null;
+  const pc = (x) => (x.games ? `${x.pct.toFixed(0)}%` : "–");
+  const of = (x) => (x.games ? `${x.right} of ${x.games}` : "none yet");
+  const row = (label, x, note = "") => ({ label, right: pc(x), count: of(x), note });
+  return {
+    early: t.graded < 30,
+    graded: t.graded,
+    compare: [
+      row("You", t.you),
+      row("The market's favorite", t.market),
+      row("The Line check's stats", t.stats, "Rebuilt from each pick's snapshot, without fresh absences"),
+    ],
+    confidence: t.byConfidence.filter((c) => c.games).map((c) => row(`Confidence ${c.confidence}`, c)),
+    sides: [
+      row("You picked the favorite", t.favorite),
+      row("You picked the underdog", t.underdog, t.underdog.usualPct != null ? `Underdogs at those spreads usually win ${t.underdog.usualPct.toFixed(0)}%` : ""),
+      row("You picked the home team", t.home),
+      row("You picked the road team", t.away),
+      row("Your pick covered the spread", t.againstSpread, "Needs 52.4% to profit at standard odds"),
+    ],
+  };
+}
 import { getGameRecap } from "../../lib/recap.mjs";
 import {
   listPredictions,
@@ -175,8 +202,15 @@ export default async function () {
   const graded = predictions.filter((p) => p.graded);
   const correct = rows.filter((p) => p.pick_correct === 1).length;
 
+  let usualAt = null;
+  try {
+    usualAt = predictorStudy().usualAt;
+  } catch {
+    // Without lineup history, the underdog comparison is left out.
+  }
   return {
     predictions,
+    track: trackView(trackRecord(rows, { usualAt })),
     summary:
       predictions.length === 0
         ? "No predictions logged yet. Pick a game on the slate to start."

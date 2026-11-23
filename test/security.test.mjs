@@ -155,3 +155,17 @@ test("the Refresh button can only send you back to a page on EdgeBoard", async (
   assert.equal(res.status, 303);
   assert.equal(res.headers.location, "/", "a // path would leave the site");
 });
+
+test("a pick without a confidence is refused with a plain message", async (t) => {
+  const game = await findOpenGame(server);
+  if (!game) return t.skip("no games open for picks on the current slates");
+  const res = await postForm(server, "/predict", {
+    gameId: game.gameId,
+    slateDate: game.slateDate,
+    pick: "home",
+    confidence: "",
+    reasoning: "Testing the missing confidence",
+  });
+  assert.equal(res.status, 400);
+  assert.match(res.body, /Choose your confidence, from 1 \(coin flip\) to 5 \(lock\)/);
+});

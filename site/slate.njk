@@ -367,19 +367,13 @@ eleventyComputed:
               {{ game.home.displayName }} (home)
             </label>
           </fieldset>
-          <div class="field-row">
-            <div class="field">
-              <label for="margin-edit-{{ game.id }}">Predicted margin (points, optional)</label>
-              <input id="margin-edit-{{ game.id }}" name="predictedMargin" type="number" inputmode="numeric" min="1" max="60" {% if game.myPick.margin %}value="{{ game.myPick.margin }}"{% endif %}>
-            </div>
-            <div class="field">
-              <label for="confidence-edit-{{ game.id }}">Confidence (1 = coin flip, 5 = lock)</label>
-              <select id="confidence-edit-{{ game.id }}" name="confidence" required>
-                {%- for n in [1, 2, 3, 4, 5] %}
-                <option value="{{ n }}"{% if game.myPick.confidence == n %} selected{% endif %}>{{ n }}</option>
-                {%- endfor %}
-              </select>
-            </div>
+          <div class="field">
+            <label for="confidence-edit-{{ game.id }}">Confidence (1 = coin flip, 5 = lock)</label>
+            <select id="confidence-edit-{{ game.id }}" name="confidence" required>
+              {%- for n in [1, 2, 3, 4, 5] %}
+              <option value="{{ n }}"{% if game.myPick.confidence == n %} selected{% endif %}>{{ n }}</option>
+              {%- endfor %}
+            </select>
           </div>
           <div class="field">
             <label for="reasoning-edit-{{ game.id }}">Reasoning (required, this is what the retrospective checks)</label>
@@ -406,21 +400,18 @@ eleventyComputed:
             {{ game.home.displayName }} (home)
           </label>
         </fieldset>
-        <div class="field-row">
-          <div class="field">
-            <label for="margin-{{ game.id }}">Predicted margin (points, optional)</label>
-            <input id="margin-{{ game.id }}" name="predictedMargin" type="number" inputmode="numeric" min="1" max="60">
-          </div>
-          <div class="field">
-            <label for="confidence-{{ game.id }}">Confidence (1 = coin flip, 5 = lock)</label>
-            <select id="confidence-{{ game.id }}" name="confidence" required>
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3" selected>3</option>
-              <option value="4">4</option>
-              <option value="5">5</option>
-            </select>
-          </div>
+        <div class="field">
+          {# No default: every pick needs a deliberate confidence, or the
+             track record cannot tell what your confidence means. #}
+          <label for="confidence-{{ game.id }}">Confidence (1 = coin flip, 5 = lock)</label>
+          <select id="confidence-{{ game.id }}" name="confidence" required>
+            <option value="" selected>Choose 1 to 5</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
         </div>
         <div class="field">
           <label for="reasoning-{{ game.id }}">Reasoning (required, this is what the retrospective checks)</label>

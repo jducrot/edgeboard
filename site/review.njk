@@ -12,6 +12,43 @@ navCurrent: review
 <p><a href="/export.csv">Download all your picks as a spreadsheet (CSV)</a></p>
 {% endif %}
 
+{% if journal.track %}
+{% set t = journal.track %}
+<section aria-labelledby="track-heading" class="card insight track">
+  <h2 id="track-heading">Your track record</h2>
+  <p>Your {{ t.graded }} graded {% if t.graded == 1 %}pick{% else %}picks{% endif %}, compared with the market and the stats on the same games.{% if t.early %} Early days: with fewer than 30 graded picks, these numbers can swing a lot.{% endif %}</p>
+  {% macro trackTable(id, caption, first, rows) %}
+  <div class="table-scroll" role="region" aria-labelledby="{{ id }}" tabindex="0">
+  <table>
+    <caption id="{{ id }}">{{ caption }}</caption>
+    <thead>
+      <tr>
+        <th scope="col">{{ first }}</th>
+        <th scope="col">Right</th>
+        <th scope="col">Picks</th>
+        <th scope="col">Context</th>
+      </tr>
+    </thead>
+    <tbody>
+      {%- for r in rows %}
+      <tr>
+        <th scope="row">{{ r.label }}</th>
+        <td>{{ r.right }}</td>
+        <td>{{ r.count }}</td>
+        <td>{{ r.note or "–" }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endmacro %}
+  {{ trackTable("t-compare", "You against the market and the stats, on the same games", "Who picked", t.compare) }}
+  {{ trackTable("t-sides", "Where your picks go right or wrong", "When", t.sides) }}
+  {{ trackTable("t-confidence", "How often you were right at each confidence level", "Confidence", t.confidence) }}
+  <p class="muted">A well-calibrated record is right more often at each step up in confidence. The market and the stats rows count only games where each had a pick.</p>
+</section>
+{% endif %}
+
 {% if journal.predictions.length > 0 %}
 <ul class="card-grid" role="list">
   {%- for p in journal.predictions %}

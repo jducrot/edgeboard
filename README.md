@@ -76,9 +76,12 @@ Every game that has not started shows:
 - **Injuries**, in a disclosure labelled like "4 Pacers injuries". Each
   player shows their recent production and whether the absence is new or
   already reflected in the team's record.
-- **A prediction form.** Saving keeps you on the slate and returns you to
-  the game's card, which then shows "Your pick: [team] by [margin] because
-  [reasoning]" and folds the rest of the card behind a "View game details"
+- **A prediction form**: who wins, your confidence from 1 to 5, and your
+  reasoning. Confidence has no default, so every pick records a deliberate
+  choice (22 of the first 37 picks kept the old default of 3, which made
+  confidence impossible to judge). There is no margin field. Saving keeps
+  you on the slate and returns you to the game's card, which then shows
+  "Your pick: [team] because [reasoning]" and folds the rest of the card behind a "View game details"
   button. Until tip-off you can update the pick there, and a "Changed since
   your pick" list shows what moved: the line, win probability, injuries,
   the projected lineup, and games played in between. Changed items are
@@ -97,7 +100,11 @@ pointed each way before the game. This text is computed from the box score
 and the pregame line, and says so. A postponed or canceled game shows
 ESPN's status (for example "Postponed") and is never treated as played.
 
-**Review** (`/review/`): every prediction with its result. Finished games
+**Review** (`/review/`): first, **Your track record**: how often you were
+right compared with the market's favorite and the Line check's stats on
+the same games, then by confidence level, favorite or underdog (with the
+usual underdog rate at those spreads), home or road, and against the
+spread. Below it, every prediction with its result. Finished games
 are graded automatically, with the same check mark or X next to each
 pick (a pick on a postponed game says "Not graded" instead), and each
 graded pick gets a computed
@@ -444,6 +451,10 @@ data, so your real picks are never touched. They cover:
   since your pick.
 - WCAG 2.2 A and AA with axe in light and dark schemes, and reflow at
   320px.
+- The pick form: no confidence is chosen for you, the browser and the
+  server both refuse a pick without one, and there is no margin field.
+- Your track record: you against the market and the stats on the same
+  games, by confidence, side, and spread.
 - Streamlined cards: pregame stat tables sit inside "Full stats", no
   total is shown, flags run strongest first, and weak flags follow a
   "Weak:" label, with the grouping taken from the research.
