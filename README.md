@@ -478,7 +478,17 @@ npm test
 ```
 
 The tests take about a minute and run against throwaway copies of the
-data, so your real picks are never touched. They cover:
+data, so your real picks are never touched.
+
+GitHub runs the same tests on every pull request and every push to
+`main`, on macOS, Windows, and Linux (`.github/workflows/test.yml`).
+Dependabot opens update PRs once a week (`.github/dependabot.yml`): one
+PR for all minor and patch updates, and a separate PR for each major
+update, so each one is tested before you merge it. GitHub has no lineup
+history, so two research-page tests skip there and run only on your
+computers.
+
+The tests cover:
 
 - Security: only this computer can connect, forged forms and foreign
   addresses are refused, safety headers are sent, and typed text is never

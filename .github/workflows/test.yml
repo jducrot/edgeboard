@@ -1,0 +1,56 @@
+# Runs the full test suite on every pull request (including Dependabot's)
+# and every push to main, on the systems EdgeBoard runs on.
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# The tests only read the code. No job can write to the repository.
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the older run.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: npm test (${{ matrix.os }})
+    strategy:
+      # Let every system finish, so one failure does not hide another.
+      fail-fast: false
+      matrix:
+        # macOS and Windows are the computers EdgeBoard runs on. Linux
+        # matches the cloud container. The database driver ships a
+        # separate ready-made build for each.
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      # Actions are pinned to exact commits. Dependabot keeps them current.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # The oldest Node EdgeBoard supports (package.json engines).
+          node-version: 22
+          cache: npm
+
+      # Installs exactly what package-lock.json lists. .npmrc applies:
+      # engine-strict, and no install scripts.
+      - run: npm ci
+
+      # The browser for the Playwright and axe-core tests, matched to the
+      # Playwright version just installed. On Linux it also installs the
+      # system libraries the browser needs.
+      - run: npx playwright install --with-deps chromium
+
+      # There is no data/history.db here, so the tests that need lineup
+      # history skip themselves, and the rest run in full.
+      - run: npm test
