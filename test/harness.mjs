@@ -22,17 +22,21 @@ export async function freePort() {
   });
 }
 
-/** A temporary data and output folder, with a copy of lineup history if one exists. */
+/**
+ * A temporary data and output folder, with a copy of lineup history if one
+ * exists. `hasHistory` says whether a copy was made. Check it rather than
+ * the sandbox file, because the server creates an empty history.db on start.
+ */
 export async function makeSandbox({ withHistory = true, emptyCache = false } = {}) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "edgeboard-test-"));
   const data = path.join(dir, "data");
   const out = path.join(dir, "site");
   await fs.mkdir(data, { recursive: true });
-  if (withHistory) {
-    await fs.copyFile(path.join(ROOT, "data", "history.db"), path.join(data, "history.db")).catch(() => {});
-  }
+  const hasHistory = withHistory
+    ? await fs.copyFile(path.join(ROOT, "data", "history.db"), path.join(data, "history.db")).then(() => true, () => false)
+    : false;
   const cache = emptyCache ? path.join(dir, "cache") : null;
-  return { dir, data, out, cache, cleanup: () => fs.rm(dir, { recursive: true, force: true }) };
+  return { dir, data, out, cache, hasHistory, cleanup: () => fs.rm(dir, { recursive: true, force: true }) };
 }
 
 async function waitFor(check, timeoutMs, describe) {

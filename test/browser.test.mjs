@@ -247,8 +247,7 @@ test("confidence chart: named by its visible summary, numbers in a table, 3:1 ma
 test("insights: the upset study shows, and every table is labelled", async (t) => {
   // Skip only when this test copy has no lineup history at all. With
   // history present, a "still downloading" page means the study broke.
-  const hasHistory = await fs.access(path.join(sandbox.data, "history.db")).then(() => true, () => false);
-  if (!hasHistory) return t.skip("no lineup history on this computer to copy");
+  if (!sandbox.hasHistory) return t.skip("no lineup history on this computer to copy");
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await page.goto(server.base + "/insights/", { waitUntil: "networkidle" });
   const headings = await page.locator("h2").allTextContents();
@@ -302,13 +301,18 @@ test("Line check: flags by side open from the keyboard, and any Upset Alert says
       // The card that holds this Line check folds its stat tables and shows no total.
       const card = lc.locator("xpath=ancestor::article[1]");
       // Upset Potential: a number and a matching word, with its reasons.
+      // It is fitted on lineup history, so a copy without history shows none.
       const up = card.locator("section.upset-potential");
-      assert.equal(await up.count(), 1, "every card with a spread shows Upset Potential");
-      const m = /^Upset Potential: [A-Z]+ (\d+)%, (High|Moderate|Low)/.exec((await up.locator(".up-stat").textContent()).trim());
-      assert.ok(m, "a number and a word");
-      const pctShown = Number(m[1]);
-      assert.equal(m[2], pctShown >= 40 ? "High" : pctShown >= 25 ? "Moderate" : "Low", "the word matches the number shown");
-      assert.ok((await up.locator("details li").count()) >= 5, "the reasons are listed");
+      if (sandbox.hasHistory) {
+        assert.equal(await up.count(), 1, "every card with a spread shows Upset Potential");
+        const m = /^Upset Potential: [A-Z]+ (\d+)%, (High|Moderate|Low)/.exec((await up.locator(".up-stat").textContent()).trim());
+        assert.ok(m, "a number and a word");
+        const pctShown = Number(m[1]);
+        assert.equal(m[2], pctShown >= 40 ? "High" : pctShown >= 25 ? "Moderate" : "Low", "the word matches the number shown");
+        assert.ok((await up.locator("details li").count()) >= 5, "the reasons are listed");
+      } else {
+        assert.equal(await up.count(), 0, "no Upset Potential without history to fit it on");
+      }
       assert.equal(await card.locator("details.full-stats table").count() >= 1, true, "the tables sit inside Full stats");
       assert.equal(await card.locator("table").count(), await card.locator("details.full-stats table").count(), "no table outside Full stats");
       assert.doesNotMatch(await card.locator(".fact-list").first().textContent(), /Total/, "no total on a pregame card");
@@ -369,8 +373,7 @@ for (const scheme of ["light", "dark"]) {
 }
 
 test("narrow screens: research tables scroll in a named box the keyboard can reach", async (t) => {
-  const hasHistory = await fs.access(path.join(sandbox.data, "history.db")).then(() => true, () => false);
-  if (!hasHistory) return t.skip("no lineup history on this computer to copy");
+  if (!sandbox.hasHistory) return t.skip("no lineup history on this computer to copy");
   const context = await browser.newContext({ bypassCSP: true, viewport: { width: 320, height: 640 } });
   const page = await context.newPage();
   await page.goto(server.base + "/insights/", { waitUntil: "networkidle" });
