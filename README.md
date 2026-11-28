@@ -65,8 +65,15 @@ Every game that has not started shows:
   - "How the stats number is built" and any uncertain players, folded
     away until opened. The stats number uses last-10 net ratings scaled
     for pace (or season scoring margins early on), +2.5 for home court,
-    -2 for a back-to-back, and -3 for each fresh key absence, capped at
-    -6.
+    -2 for a back-to-back, and points off for each team's minutes
+    missing: the minutes a game that players listed Out tonight played
+    over the last 10 games. A player out for a month costs nothing,
+    because his minutes already left the last 10. A starter hurt in the
+    last game costs his full share. The points per minute are learned
+    from past games (about 0.5 points per 10 minutes so far).
+    Questionable and doubtful players are not counted and are listed as
+    uncertain instead. Before lineup history has downloaded, it falls
+    back to -3 for each newly-out key player, capped at -6.
 - **Full stats**, folded away until opened: the matchup table (records,
   each offense against the other team's defense, last 10 and streak,
   rest), league ranks over the last 10 games, the cohesion table, and the
@@ -82,7 +89,9 @@ Every game that has not started shows:
   (offense) and DA (defensive activity, from steals, blocks, and rebounds,
   because box scores cannot see positioning). A starter who missed recent
   games with no injury listed is flagged in bold.
-- **Injuries**, in a disclosure labelled like "4 Pacers injuries". Each
+- **Injuries**, in a disclosure labelled like "4 Pacers injuries". Above
+  it, one line says how many minutes a game from the last 10 games are
+  out tonight, and how many of them are new since the last game. Each
   player shows their recent production and whether the absence is new or
   already reflected in the team's record.
 - **A prediction form**: who wins, your confidence from 1 to 5, and your
@@ -159,6 +168,11 @@ each scored only from what its card would have shown before tip-off.
 - **Does the Line check's verdict beat the spread?** The side the stats
   leaned toward, against the spread, for each of the card's three
   verdicts.
+- **How much do injuries cost?** Points per 10 minutes missing beyond
+  what the last-10 stats show, how much of that the spread already moves,
+  and a before-and-after table: the Line check with no injury
+  adjustment, with the old 3-point rule, and with minutes missing, graded
+  on the same games.
 - **Does cohesion help?** What "average pair" and the cohesion gap mean,
   the cutoffs behind "large gap (top third)", a worked example, and the
   results by slice.
@@ -504,6 +518,10 @@ data, so your real picks are never touched. They cover:
   cannot break a day, and slate dates survive daylight-saving changes.
 - Lineups: a box score that failed to load is not counted as a missed
   game, and a lineup built from failed downloads is not reused.
+- Injuries by minutes: a player out for weeks costs nothing, a player
+  hurt in the last game costs his full share, only players listed Out
+  count, the injury rate is learned only from earlier games, and the
+  Line check takes the points off and says so.
 - The Insights research: every game is scored only from earlier games,
   back-to-backs are judged on Eastern dates, the Line check replay follows
   the card's rules, upsets are compared with the usual rate at the same

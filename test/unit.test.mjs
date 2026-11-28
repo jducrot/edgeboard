@@ -376,11 +376,20 @@ test("predictor study: wins, underdog wins, and covers are counted correctly", (
 });
 
 test("predictor study: the Line check replay follows the card's own rules", () => {
-  const team = (net, restDays = 1, freshMissing = 0) => ({ stats: { net, pace: 100 }, restDays, freshMissing, seasonMargin: 0 });
-  assert.equal(P.statsMargin({ home: team(5), away: team(-5) }), 12.5, "net gap at 100 possessions, plus 2.5 home court");
-  assert.equal(P.statsMargin({ home: team(5, 0), away: team(-5) }), 10.5, "home back-to-back costs 2");
-  assert.equal(P.statsMargin({ home: team(5), away: team(-5, 1, 1) }), 15.5, "a fresh absence costs 3");
-  assert.equal(P.statsMargin({ home: team(5), away: team(-5, 1, 4) }), 18.5, "absences are capped at 6");
+  const team = (net, restDays = 1, missing = null) => ({
+    stats: { net, pace: 100 },
+    restDays,
+    freshMissing: 2, // the old rule's input: it must no longer count
+    seasonMargin: 0,
+    minutes: missing === null ? null : { missing },
+  });
+  const row = (home, away, injuryRate = 0.05) => ({ home, away, injuryRate });
+  assert.equal(P.statsMargin(row(team(5, 1, 0), team(-5, 1, 0))), 12.5, "net gap at 100 possessions, plus 2.5 home court");
+  assert.equal(P.statsMargin(row(team(5, 0, 0), team(-5, 1, 0))), 10.5, "home back-to-back costs 2");
+  assert.equal(P.statsMargin(row(team(5, 1, 30), team(-5, 1, 0))), 11, "30 minutes missing at 0.05 a minute costs 1.5");
+  assert.equal(P.statsMargin(row(team(5, 1, 30), team(-5, 1, 10))), 11.5, "only the difference between the teams counts");
+  assert.equal(P.statsMargin(row(team(5, 1, 30), team(-5))), 12.5, "no adjustment when one team's minutes are unknown");
+  assert.equal(P.statsMargin(row(team(5, 1, 30), team(-5, 1, 0), 0)), 12.5, "no adjustment before a rate is learned");
 });
 
 test("predictor study: back-to-backs are judged on Eastern dates", () => {
@@ -775,4 +784,103 @@ test("anatomy: battles and shooting nights are counted from each team's own aver
   assert.equal(a.withoutShooting, 1);
   assert.equal(a.closeWithin5, 50);
   assert.equal(a.swingInUpsets, 100);
+});
+
+/* ------------------------- injuries weighed by minutes ------------------------- */
+
+// Fifteen games. "long" plays 30 minutes in the first five, then is hurt
+// for the whole last 10. Of the last 10, "star" plays 30 minutes in all,
+// "half" plays 20 in the first five and then gets hurt, "bench" plays 5.
+const minutesHistory = () =>
+  Array.from({ length: 15 }, (_, i) => ({
+    mins: new Map([
+      ["star", 30],
+      ["bench", 5],
+      ...(i < 5 ? [["long", 30]] : []),
+      ...(i >= 5 && i < 10 ? [["half", 20]] : []),
+    ]),
+  }));
+
+test("injuries: a player out for weeks costs nothing, one hurt in the last game costs his full share", () => {
+  const out = new Set(["star", "half", "long"]);
+  const m = P.minutesMissing(minutesHistory(), (id) => out.has(id));
+  assert.equal(m.missing, 40, "star's 30 plus half's 10 (20 a game in 5 of 10), long adds nothing");
+  assert.equal(m.fresh, 30, "only star played the last game");
+  assert.deepEqual(m.players.map((p) => [p.id, p.perGame, p.fresh]), [["star", 30, true], ["half", 10, false]]);
+  assert.equal(P.minutesMissing(minutesHistory(), () => false).missing, 0, "nobody out, nothing missing");
+  const thin = minutesHistory().map((g, i) => (i < 11 ? { mins: null } : g));
+  assert.equal(P.minutesMissing(thin, () => true), null, "fewer than 5 games with minutes: unknown, not zero");
+});
+
+test("injuries: the rate per minute is learned only from earlier games, and recovers the true cost", () => {
+  // 300 games between two teams. Each third game one home player sits, and
+  // the home team loses 0.1 points for each minute missing, plus noise.
+  const players = ["a", "b", "c", "d", "e", "f", "g", "h"];
+  const played = new Map();
+  const homeHist = [];
+  const games = [];
+  for (let i = 0; i < 300; i++) {
+    const sits = i % 3 === 0 ? players[i % 8] : null;
+    const home = new Map(players.filter((p) => p !== sits).map((p) => [p, 30]));
+    const missing = homeHist.length >= 5 ? P.minutesMissing(homeHist, (id) => id === sits)?.missing ?? 0 : 0;
+    const margin = Math.round(4 - 0.1 * missing + (((i * 7919) % 11) - 5));
+    const id = `m${i}`;
+    played.set(id, new Map([["1", home], ["2", new Map(players.map((p) => [p, 30]))]]));
+    homeHist.push({ mins: home });
+    games.push({
+      eventId: id, season: 2027, dateUtc: new Date(Date.UTC(2026, 9, 1, 23) + i * 86_400_000).toISOString(),
+      homeId: "1", awayId: "2", homeScore: 100 + margin, awayScore: 100, homeLine: 3,
+    });
+  }
+  const rows = P.scoreGames(games, { played });
+  assert.ok(rows.slice(0, 200).every((r) => r.injuryRate === 0), "no rate until 200 earlier games");
+  assert.ok(rows.at(-1).injuryRate > 0, "then a rate is used");
+  assert.ok(Math.abs(rows.injuryRate - 0.1) < 0.04, `recovers about 0.1 a minute (got ${rows.injuryRate.toFixed(3)})`);
+  // Change the last game's result: no earlier game's rate may move.
+  const changed = games.map((g, i) => (i === games.length - 1 ? { ...g, homeScore: 300 } : g));
+  const again = P.scoreGames(changed, { played });
+  assert.deepEqual(again.map((r) => r.injuryRate), rows.map((r) => r.injuryRate), "each rate comes from earlier games only");
+  assert.notEqual(again.injuryRate, rows.injuryRate, "the final rate, for upcoming games, does include the last game");
+});
+
+test("injuries: the card counts only players listed Out, and says how much is new", async () => {
+  const { minutesOut, minutesLine } = await import("../lib/minutes.mjs");
+  const study = { minutesNow: ({ isOut }) => P.minutesMissing(minutesHistory(), isOut) };
+  const team = { id: "1" };
+  const items = [
+    { athleteId: "star", athlete: "Star Player", status: "Out" },
+    { athleteId: "half", athlete: "Half Player", status: "Questionable" },
+  ];
+  const m = minutesOut(study, team, "2026-11-28T00:00:00Z", items);
+  assert.equal(m.missing, 30, "the questionable player is not counted");
+  assert.deepEqual(m.players.map((p) => p.name), ["Star Player"]);
+  assert.equal(
+    minutesLine(m),
+    "Out tonight: 30 minutes a game from the last 10 games, all of them new since the last game. The recent stats still count those minutes.",
+  );
+  const both = minutesOut(study, team, "2026-11-28T00:00:00Z", items.map((i) => ({ ...i, status: "Out" })));
+  assert.match(minutesLine(both), /^Out tonight: 40 minutes a game from the last 10 games, 30 of them new since the last game\./);
+  const earlier = minutesOut(study, team, "2026-11-28T00:00:00Z", [{ athleteId: "half", athlete: "Half Player", status: "Out" }]);
+  assert.match(minutesLine(earlier), /^Out tonight: 10 minutes a game from the last 10 games, none of them new since the last game\./, "hurt a few games ago: half his share");
+  const long = minutesOut(study, team, "2026-11-28T00:00:00Z", [{ athleteId: "long", athlete: "Long Gone", status: "Out" }]);
+  assert.match(minutesLine(long), /none of the minutes from the last 10 games/, "out for weeks: already in the stats");
+  assert.equal(minutesLine(minutesOut(study, team, "2026-11-28T00:00:00Z", [])), null, "nobody out, no line");
+  assert.equal(minutesOut(null, team, "2026-11-28T00:00:00Z", items), null, "no research yet, no minutes");
+});
+
+test("injuries: the Line check takes the points off once, and falls back to the old rule without minutes", async () => {
+  const { lineCheck } = await import("../lib/linecheck.mjs");
+  const game = { home: { abbreviation: "CLE" }, away: { abbreviation: "DAL" } };
+  const stats = { net: 0, pace: 100 };
+  const injured = [{ athlete: "Star Player", status: "Out", tier: "Key player", missedStreak: 0 }];
+  const base = { game, odds: { details: "CLE -4.5" }, homeStats: stats, awayStats: stats, homeInjuryItems: injured, awayInjuryItems: [] };
+  const byMinutes = lineCheck({ ...base, minutes: { home: { missing: 30 }, away: { missing: 0 }, rate: 0.05 } });
+  assert.equal(byMinutes.statsHome, 1, "2.5 home court, less 1.5 for 30 minutes, and not 3 more for the same player");
+  assert.ok(byMinutes.parts.includes("CLE missing 30 minutes a game of its last-10 rotation (-1.5)"));
+  assert.ok(!byMinutes.parts.some((p) => /newly without/.test(p)), "the old rule does not also apply");
+  const awaySide = lineCheck({ ...base, homeInjuryItems: [], minutes: { home: { missing: 0 }, away: { missing: 20 }, rate: 0.05 } });
+  assert.equal(awaySide.statsHome, 3.5, "the visitor's missing minutes help the home team");
+  assert.ok(awaySide.parts.includes("DAL missing 20 minutes a game of its last-10 rotation (-1 for them)"));
+  const fallback = lineCheck({ ...base, minutes: { home: null, away: { missing: 0 }, rate: 0.05 } });
+  assert.equal(fallback.statsHome, -0.5, "without minutes, the old 3 points per newly-out key player");
 });

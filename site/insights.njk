@@ -215,8 +215,47 @@ navCurrent: insights
     </tbody>
   </table>
   </div>
-  <p class="muted">Profit at standard -110 odds needs {{ p.breakEven }}%. The stats estimate is rebuilt for each past game with the Line check's own rules: last-10 net ratings scaled for pace, 2.5 points for home court, 2 points for a back-to-back, and 3 points for each regular starter newly out, up to 6. For past games, "newly out" means a regular starter who started the previous game but not this one.</p>
+  <p class="muted">Profit at standard -110 odds needs {{ p.breakEven }}%. The stats estimate is rebuilt for each past game with the Line check's own rules: last-10 net ratings scaled for pace, 2.5 points for home court, 2 points for a back-to-back, and points off for each team's minutes missing, as the next section explains.</p>
 </section>
+
+{% if p.injury %}
+{% set j = p.injury %}
+<section aria-labelledby="injury-heading" class="card insight">
+  <h2 id="injury-heading">How much do injuries cost?</h2>
+  <p>The Line check takes points off a team for the minutes it is missing tonight that its last-10 stats still count. A player out for a month costs nothing, because his minutes already left the last 10. A starter hurt in the last game costs his full share.</p>
+  <ul>
+    <li><strong>The cost:</strong> each 10 minutes missing cost about {{ j.perTen }} beyond what the last-10 stats showed, over {{ j.games }} games ({{ j.chance }}). A 30-minute starter hurt in the last game costs about {{ j.starter }}.</li>
+    {% if j.market %}<li><strong>The market already knows:</strong> the spread moved about {{ j.market }} for the same 10 minutes.{% if j.leftover %} The leftover, about {{ j.leftover }} per 10 minutes ({{ j.leftoverStarter }} for a 30-minute starter), is what the market may be missing. Too small to act on by itself.{% endif %}</li>{% endif %}
+    <li><strong>Before and after:</strong> {{ j.verdict }}</li>
+  </ul>
+  <div class="table-scroll" role="region" aria-labelledby="t-injury" tabindex="0">
+  <table>
+    <caption id="t-injury">The Line check's stats estimate, three ways, on the same {{ j.games }} games</caption>
+    <thead>
+      <tr>
+        <th scope="col">Injury adjustment</th>
+        <th scope="col">Off by, on average</th>
+        <th scope="col">Picked the winner</th>
+        <th scope="col">Disagreed with the spread by 3 or more: covered</th>
+        <th scope="col">Backed the underdog: it won</th>
+      </tr>
+    </thead>
+    <tbody>
+      {%- for r in j.rows %}
+      <tr>
+        <th scope="row">{{ r.label }}</th>
+        <td>{{ r.miss }}</td>
+        <td>{{ r.winner }}</td>
+        <td>{{ r.disagree }}</td>
+        <td>{{ r.dog }}</td>
+      </tr>
+      {%- endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted">For past games, "out" means a player who did not play. That includes rest and coach's decisions, which the injury report does not always list. On the cards, "out" means the injury report says Out. Questionable and doubtful players are not counted, and appear under the Line check's uncertainty instead. The rate is learned only from earlier games, and needs 200 of them before it is used.</p>
+</section>
+{% endif %}
 
 <section aria-labelledby="cohesion-heading" class="card insight">
   <h2 id="cohesion-heading">Does cohesion help?</h2>

@@ -72,6 +72,38 @@ function lineCheckVerdict(bands) {
   return `None of the three verdicts clears the ${BREAK_EVEN.toFixed(1)}% needed to profit, not even strong disagreement. When the stats and the line disagree, treat it as a reason to look closer, not as a bet on its own.`;
 }
 
+function injurySection(inj) {
+  if (!inj || inj.perTen == null) return null;
+  const pts = (n) => `${n.toFixed(1)} points`;
+  // Two decimals where the three versions differ by less than one tenth.
+  const fine = (n) => `${n.toFixed(2)} points`;
+  const [none, old, minutes] = inj.variants;
+  const row = (v) => ({
+    label: v.label,
+    miss: fine(v.miss),
+    winner: pct(v.winnerPct),
+    disagree: v.disagree.atsGames ? `${pct(v.disagree.atsPct)} of ${count(v.disagree.atsGames)}` : "–",
+    dog: v.dog.games ? `${pct(v.dog.wonPct)} of ${count(v.dog.games)} (usual ${pct(v.dog.usualPct)})` : "–",
+  });
+  const leftover = inj.perTen - (inj.marketPerTen ?? 0);
+  const best = [...inj.variants].sort((a, b) => a.miss - b.miss)[0];
+  const spread = Math.max(...inj.variants.map((v) => v.miss)) - Math.min(...inj.variants.map((v) => v.miss));
+  return {
+    games: count(inj.games),
+    perTen: pts(inj.perTen),
+    chance: inj.t >= 1.96 ? "too steady to be chance" : "but chance could produce it",
+    starter: pts((inj.perTen * 30) / 10),
+    market: inj.marketPerTen == null ? null : pts(inj.marketPerTen),
+    leftover: leftover > 0 ? pts(leftover) : null,
+    leftoverStarter: leftover > 0 ? pts((leftover * 30) / 10) : null,
+    verdict:
+      best === minutes
+        ? `Weighing minutes is the most accurate of the three, and it is the one on the cards. The gains are small: the three are within ${fine(spread)} of each other, on games that are hard to call within ${pts(minutes.miss)}.`
+        : `"${best.label}" is the most accurate of the three right now, so weighing minutes has not yet earned its place. The three are within ${fine(spread)} of each other.`,
+    rows: [none, old, minutes].map(row),
+  };
+}
+
 function watchSection(watch) {
   if (!watch?.signals?.length) return null;
   const covered = (t) => (t.atsGames ? `${pct(t.atsPct)} of ${count(t.atsGames)}` : "No games yet");
@@ -145,6 +177,7 @@ function predictorSection(study) {
       atsRange: range(s.atsLow, s.atsHigh),
     })),
     watch: watchSection(study.watch),
+    injury: injurySection(study.injury),
     lineCheckVerdict: lineCheckVerdict(study.lineCheck),
     lineCheck: study.lineCheck.map((b) => ({
       label: b.label,

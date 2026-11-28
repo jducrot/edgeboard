@@ -19,6 +19,7 @@ import { reconcileStartersAndInjuries } from "../../lib/lineup.mjs";
 import { compareToSnapshot } from "../../lib/changes.mjs";
 import { cohesionIndex, lineupCohesion, cohesionBacktest, cohesionNote } from "../../lib/cohesion.mjs";
 import { predictorStudy, lineCheckNote } from "../../lib/predictors.mjs";
+import { minutesOut, minutesLine } from "../../lib/minutes.mjs";
 import { sideFlags, withHistory, upsetAlert, rankFlags, COUNTED_TOTAL } from "../../lib/flags.mjs";
 import { watchFlags } from "../../lib/watchlist.mjs";
 import { upsetPotential } from "../../lib/potential.mjs";
@@ -600,6 +601,11 @@ export default async function () {
         ({ starters: awayStartersList, injView: awayInjFinal, unaccounted: awayUnaccounted } = awayR);
         ({ starters: homeStartersList, injView: homeInjFinal, unaccounted: homeUnaccounted } = homeR);
         if (g.statusState === "pre") {
+          // Minutes out tonight, from the full injury report.
+          const awayMin = minutesOut(study, g.away, g.dateUtc, awayInjView.all);
+          const homeMin = minutesOut(study, g.home, g.dateUtc, homeInjView.all);
+          awayInjFinal = { ...awayInjFinal, minutesLine: minutesLine(awayMin) };
+          homeInjFinal = { ...homeInjFinal, minutesLine: minutesLine(homeMin) };
           // The line check sees the full, unreconciled injury list so that
           // game-time-decision starters still surface as uncertainty, plus
           // anyone whose absence has no injury listing.
@@ -615,6 +621,7 @@ export default async function () {
             homeStats,
             awayStats,
             unlistedAbsences: [...awayR.unlisted, ...homeR.unlisted],
+            minutes: { home: homeMin, away: awayMin, rate: study?.injuryRate ?? 0 },
           });
         }
       }

@@ -344,6 +344,7 @@ eleventyComputed:
           {% if side.inj.count == 0 %}
           <p>No {{ side.nickname }} injuries listed.</p>
           {% else %}
+          {% if side.inj.minutesLine %}<p class="minutes-out">{{ side.nickname }}: {{ side.inj.minutesLine }}</p>{% endif %}
           <details>
             <summary>{{ side.inj.count }} {{ side.nickname }} {% if side.inj.count == 1 %}injury{% else %}injuries{% endif %}{% if side.inj.changedCount %} ({{ side.inj.changedCount }} changed since your pick){% endif %}</summary>
             <ul>

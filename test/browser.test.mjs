@@ -257,6 +257,7 @@ test("insights: the upset study shows, and every table is labelled", async (t) =
     "Anatomy of an upset",
     "Watch list: ideas still being tested",
     "Does the Line check's verdict beat the spread?",
+    "How much do injuries cost?",
     "Does cohesion help?",
     "How often each signal picked the winner",
   ]);
